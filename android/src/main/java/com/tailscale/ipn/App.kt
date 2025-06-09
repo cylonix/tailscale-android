@@ -30,6 +30,7 @@ import com.tailscale.ipn.mdm.MDMSettingsChangedReceiver
 import com.tailscale.ipn.ui.localapi.Client
 import com.tailscale.ipn.ui.localapi.Request
 import com.tailscale.ipn.ui.model.Ipn
+import com.tailscale.ipn.ui.model.Ipn.Notify
 import com.tailscale.ipn.ui.notifier.HealthNotifier
 import com.tailscale.ipn.ui.notifier.Notifier
 import com.tailscale.ipn.ui.viewModel.VpnViewModel
@@ -52,12 +53,12 @@ import java.net.NetworkInterface
 import java.security.GeneralSecurityException
 import java.util.Locale
 
-class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
+open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner { // __CYLONIX_MOD__
   val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
   companion object {
     private const val FILE_CHANNEL_ID = "tailscale-files"
-    private const val TAG = "App"
+    private const val TAG = "cylonix: App" // __CYLONIX_MOD__
     private lateinit var appInstance: App
 
     /**
@@ -90,7 +91,7 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
   override fun shouldUseGoogleDNSFallback(): Boolean = BuildConfig.USE_GOOGLE_DNS_FALLBACK
 
   override fun log(s: String, s1: String) {
-    Log.d(s, s1)
+    Log.d("cylonix: $s", s1) // __CYLONIX_MOD__
   }
 
   fun getLibtailscaleApp(): libtailscale.Application {
@@ -185,6 +186,7 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
               if (vpnRunning) {
                 notifyStatus(vpnRunning = true, hideDisconnectAction = hideDisconnectAction.value)
               }
+              stateNotifyCallBack?.invoke(state) // __CYLONIX_MOD__
             }
       }
     }
@@ -198,6 +200,23 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
   private fun initViewModels() {
     vpnViewModel = ViewModelProvider(this, VpnViewModelFactory(this)).get(VpnViewModel::class.java)
   }
+
+  // __BEGIN_CYLONIX_MOD__
+  private var notificationCallBack: ((Notify) -> Unit)? = null
+  private var stateNotifyCallBack: ((Ipn.State) -> Unit)? = null
+  fun setStateNotifyCallback(cb: (Ipn.State) -> Unit) {
+    stateNotifyCallBack = cb
+  }
+  fun setNotificationCallback(cb: (Notify) -> Unit) {
+    notificationCallBack = cb
+  }
+  fun onNotificationReceived(notification: Notify) {
+    notificationCallBack?.invoke(notification)
+  }
+  fun sendCommand(cmd: String, args: String?): String {
+    return Libtailscale.sendCommand(cmd, args ?: "")
+  }
+  // __END_CYLONIX_MOD__
 
   fun setWantRunning(wantRunning: Boolean, onSuccess: (() -> Unit)? = null) {
     val callback: (Result<Ipn.Prefs>) -> Unit = { result ->
@@ -367,7 +386,7 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
  */
 open class UninitializedApp : Application() {
   companion object {
-    const val TAG = "UninitializedApp"
+    const val TAG = "cylonix: UninitializedApp" // __CYLONIX_MOD__
 
     const val STATUS_NOTIFICATION_ID = 1
     const val STATUS_EXIT_NODE_FAILURE_NOTIFICATION_ID = 2
@@ -509,6 +528,7 @@ open class UninitializedApp : Application() {
             buttonIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
+    /* // __BEGIN)CYLONIX_MOD__
     val intent =
         Intent(this, MainActivity::class.java).apply {
           flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -516,6 +536,7 @@ open class UninitializedApp : Application() {
     val pendingIntent: PendingIntent =
         PendingIntent.getActivity(
             this, 1, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    */ // __END_CYLONIX_MOD__
 
     val builder =
         NotificationCompat.Builder(this, STATUS_CHANNEL_ID)
@@ -527,7 +548,7 @@ open class UninitializedApp : Application() {
             .setOngoing(vpnRunning)
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(pendingIntent)
+            //.setContentIntent(pendingIntent) // __CYLONIX_MOD__ Commented out to avoid MainActivity launch
     if (!vpnRunning || !hideDisconnectAction) {
       builder.addAction(
           NotificationCompat.Action.Builder(0, actionLabel, pendingButtonIntent).build())

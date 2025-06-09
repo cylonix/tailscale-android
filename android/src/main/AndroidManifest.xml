@@ -29,7 +29,7 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
-    <application
+    <!-- application // __BEGIN_CYLONIX_MOD__
         android:name=".App"
         android:allowBackup="false"
         android:banner="@drawable/tv_banner"
@@ -37,8 +37,9 @@
         android:label="Tailscale"
         android:requestLegacyExternalStorage="true"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:theme="@style/Theme.App.SplashScreen">
-        <activity
+        android:theme="@style/Theme.App.SplashScreen" // __END_CYLONIX_MOD__ -->
+    <application>
+        <!-- activity // __BEGIN_CYLONIX_MOD__
             android:name="MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:exported="true"
@@ -54,7 +55,7 @@
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
             </intent-filter>
-        </activity>
+        </activity> // __END_CYLONIX_MOD__ -->
         <activity
             android:name="ShareActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"

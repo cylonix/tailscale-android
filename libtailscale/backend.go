@@ -134,6 +134,10 @@ func (a *App) runBackend(ctx context.Context) error {
 	a.backend = b.backend
 	defer b.CloseTUNs()
 
+	// __BEGIN_CYLONIX_MOD__
+	setupAppCommandHandler(a)
+	// __END_CYLONIX_MOD__
+
 	h := localapi.NewHandler(b.backend, log.Printf, *a.logIDPublicAtomic.Load())
 	h.PermitRead = true
 	h.PermitWrite = true

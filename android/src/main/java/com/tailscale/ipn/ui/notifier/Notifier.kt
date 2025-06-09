@@ -29,7 +29,7 @@ import kotlinx.serialization.json.decodeFromStream
 // and return you the session Id.  When you are done with your watcher, you must call
 // unwatchIPNBus with the sessionId.
 object Notifier {
-  private val TAG = Notifier::class.simpleName
+  private val TAG = "cylonix: ${Notifier::class.simpleName}" // __CYLONIX_MOD__
   private val decoder = Json { ignoreUnknownKeys = true }
 
   // General IPN Bus State
@@ -87,6 +87,7 @@ object Notifier {
             notify.FilesWaiting?.let(filesWaiting::set)
             notify.IncomingFiles?.let(incomingFiles::set)
             notify.Health?.let(health::set)
+            App.get().onNotificationReceived(notify) // __CYLONIX_MOD__
           }
     }
   }

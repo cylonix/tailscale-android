@@ -148,10 +148,16 @@ $(GOBIN)/gobind: go.mod go.sum
 	./tool/go install golang.org/x/mobile/cmd/gobind
 
 $(LIBTAILSCALE): Makefile android/libs $(shell find libtailscale -name *.go) go.mod go.sum $(GOBIN)/gomobile tailscale.version
+    # __BEGIN_CYLONIX_MOD__
+    # Temp workaround before cylonix fork of tailscale is published.
+	sh scripts/cylonix_build.sh $(VERSIONNAME) $(VERSIONNAME_SHORT) $(OUR_VERSION)
 	$(GOBIN)/gomobile bind -target android -androidapi 26 \
 		-tags "$$(./build-tags.sh)" \
 		-ldflags "-w $$(./version-ldflags.sh)" \
-		-o $@ ./libtailscale
+		-o $@ ./libtailscale \
+		|| (ret=$$?; sh scripts/cylonix_build.sh && exit $$ret)
+	sh scripts/cylonix_build.sh
+    # __END_CYLONIX_MOD__
 
 .PHONY: libtailscale
 libtailscale: $(LIBTAILSCALE) ## Build the libtailscale AAR
@@ -314,3 +320,14 @@ help: ## Show this help
 	@echo ""
 
 .DEFAULT_GOAL := help
+
+# __BEGIN_CYLOINIX_MOD__
+IPN_APP_AAR=android/libs/ipn_app.aar
+
+.PHONY: $(IPN_APP_AAR)
+
+$(IPN_APP_AAR): gradle-dependencies
+	@echo "Building ipn app AAR"
+	(cd android && ./gradlew assembleAar)
+	cp android/build/outputs/aar/android-aar.aar $@
+# __END_CYLONIX_MOD__

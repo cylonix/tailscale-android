@@ -80,20 +80,22 @@ class UseExitNodeWorker(
         val result = runAndGetResult()
 
         return if (result != null) {
-            val intent =
+            // __BEGIN_CYLONIX_MOD__
+            /*val intent =
                 Intent(app, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                 }
             val pendingIntent: PendingIntent =
                 PendingIntent.getActivity(
                     app, 1, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            */ // _END_CYLONIX_MOD__
 
             val notification = NotificationCompat.Builder(app, STATUS_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(app.getString(R.string.use_exit_node_intent_failed))
                 .setContentText(result)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                .setContentIntent(pendingIntent)
+                //.setContentIntent(pendingIntent) // __CYLONIX_MOD__
                 .build()
 
             app.notifyStatus(notification)

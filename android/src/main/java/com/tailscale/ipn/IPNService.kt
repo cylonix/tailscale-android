@@ -124,13 +124,14 @@ open class IPNService : VpnService(), libtailscale.IPNService {
     }
   }
 
+  /* // __BEGIN_CYLONIX_MOD__
   private fun configIntent(): PendingIntent {
     return PendingIntent.getActivity(
         this,
         0,
         Intent(this, MainActivity::class.java),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-  }
+  } */ // __CYLONIX_MOD__
 
   private fun disallowApp(b: Builder, name: String) {
     try {
@@ -143,7 +144,7 @@ open class IPNService : VpnService(), libtailscale.IPNService {
   override fun newBuilder(): VPNServiceBuilder {
     val b: Builder =
         Builder()
-            .setConfigureIntent(configIntent())
+            //.setConfigureIntent(configIntent()) // __CYLONIX_MOD__
             .allowFamily(OsConstants.AF_INET)
             .allowFamily(OsConstants.AF_INET6)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

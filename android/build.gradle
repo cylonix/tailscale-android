@@ -27,7 +27,7 @@ repositories {
 }
 
 apply plugin: 'kotlin-android'
-apply plugin: 'com.android.application'
+apply plugin: 'com.android.library'
 apply plugin: 'org.jetbrains.kotlin.plugin.serialization'
 apply plugin: 'com.ncorti.ktfmt.gradle'
 
@@ -92,11 +92,15 @@ android {
 
             minifyEnabled true
 
-            shrinkResources true
+            //shrinkResources true // __CYLONIX_MOD__
 
             proguardFiles getDefaultProguardFile(
                     'proguard-android-optimize.txt'),
                     'proguard-rules.pro'
+        }
+        aar {
+            manifestPlaceholders.leanbackRequired = false
+            buildConfigField 'String', 'VERSION_NAME', "\"" + "1.80.0" +"\""
         }
         release_tv {
             initWith release
