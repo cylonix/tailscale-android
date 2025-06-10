@@ -4,6 +4,7 @@
 package com.tailscale.ipn.ui.notifier
 
 import com.tailscale.ipn.App
+import com.tailscale.ipn.onNotificationReceived // __CYLONIX_MOD__
 import com.tailscale.ipn.ui.model.Empty
 import com.tailscale.ipn.ui.model.Health
 import com.tailscale.ipn.ui.model.Ipn

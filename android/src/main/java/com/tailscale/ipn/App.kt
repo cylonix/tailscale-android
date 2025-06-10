@@ -58,7 +58,7 @@ open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwne
 
   companion object {
     private const val FILE_CHANNEL_ID = "tailscale-files"
-    private const val TAG = "cylonix: App" // __CYLONIX_MOD__
+    private const val TAG = "App"
     private lateinit var appInstance: App
 
     /**
@@ -91,7 +91,7 @@ open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwne
   override fun shouldUseGoogleDNSFallback(): Boolean = BuildConfig.USE_GOOGLE_DNS_FALLBACK
 
   override fun log(s: String, s1: String) {
-    Log.d("cylonix: $s", s1) // __CYLONIX_MOD__
+    logWithFile(TAG, "$s: $s1") // __CYLONIX_MOD__
   }
 
   fun getLibtailscaleApp(): libtailscale.Application {
@@ -186,7 +186,7 @@ open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwne
               if (vpnRunning) {
                 notifyStatus(vpnRunning = true, hideDisconnectAction = hideDisconnectAction.value)
               }
-              stateNotifyCallBack?.invoke(state) // __CYLONIX_MOD__
+              onIpnStateChanged(state) // __CYLONIX_MOD__
             }
       }
     }
@@ -200,23 +200,6 @@ open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwne
   private fun initViewModels() {
     vpnViewModel = ViewModelProvider(this, VpnViewModelFactory(this)).get(VpnViewModel::class.java)
   }
-
-  // __BEGIN_CYLONIX_MOD__
-  private var notificationCallBack: ((Notify) -> Unit)? = null
-  private var stateNotifyCallBack: ((Ipn.State) -> Unit)? = null
-  fun setStateNotifyCallback(cb: (Ipn.State) -> Unit) {
-    stateNotifyCallBack = cb
-  }
-  fun setNotificationCallback(cb: (Notify) -> Unit) {
-    notificationCallBack = cb
-  }
-  fun onNotificationReceived(notification: Notify) {
-    notificationCallBack?.invoke(notification)
-  }
-  fun sendCommand(cmd: String, args: String?): String {
-    return Libtailscale.sendCommand(cmd, args ?: "")
-  }
-  // __END_CYLONIX_MOD__
 
   fun setWantRunning(wantRunning: Boolean, onSuccess: (() -> Unit)? = null) {
     val callback: (Result<Ipn.Prefs>) -> Unit = { result ->
