@@ -360,6 +360,10 @@ open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwne
   fun notifyPolicyChanged() {
     app.notifyPolicyChanged()
   }
+
+  override fun fatalError(message: String): Unit {
+    onNotification?.invoke(Notify(ErrMessage = message))
+  }
 }
 
 /**

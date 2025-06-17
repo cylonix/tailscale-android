@@ -233,6 +233,9 @@
     <string name="taildrop_share_failed">Some files were not shared. Please try again.</string>
     <string name="taildrop_sending">Sending</string>
     <string name="taildrop_share_failed_short">Failed</string>
+    <string name="search_devices">Search devices...</string>
+    <string name="online_only">Online only</string>
+    <string name="no_matching_devices">No matching devices found</string>
 
 
     <!-- Error Dialog Titles -->

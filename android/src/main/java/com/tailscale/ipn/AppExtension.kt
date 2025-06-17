@@ -116,4 +116,3 @@ fun App.onIpnStateChanged(state: Ipn.State) {
 fun App.sendCommand(cmd: String, args: String?): String {
     return Libtailscale.sendCommand(cmd, args ?: "")
 }
-

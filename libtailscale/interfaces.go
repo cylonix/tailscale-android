@@ -61,6 +61,9 @@ type AppContext interface {
 	// GetSyspolicyStringArrayValue returns the current string array value for the given system policy,
 	// expressed as a JSON string.
 	GetSyspolicyStringArrayJSONValue(key string) (string, error)
+
+	// FatalError is called when a fatal error occurs in the backend.
+	FatalError(err string)
 }
 
 // IPNService corresponds to our IPNService in Java.

@@ -37,27 +37,26 @@ fun PeerView(
 
   ListItem(
       modifier = Modifier.clickable { onClick(peer) },
-      headlineContent = {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          // By definition, SelfPeer is online since we will not show the peer list
-          // unless you're connected.
-          val isSelfAndRunning = (peer.StableID == selfPeer && stateVal == Ipn.State.Running)
-          val color: Color =
-              if ((peer.Online == true) || isSelfAndRunning) {
+      leadingContent = {
+        // By definition, SelfPeer is online since we will not show the peer list
+        // unless you're connected.
+        val isSelfAndRunning = (peer.StableID == selfPeer && stateVal == Ipn.State.Running)
+        val color: Color =
+            if ((peer.Online == true) || isSelfAndRunning) {
                 MaterialTheme.colorScheme.on
-              } else {
+            } else {
                 MaterialTheme.colorScheme.off
-              }
-          Box(
-              modifier =
-                  Modifier.size(8.dp)
-                      .background(color = color, shape = RoundedCornerShape(percent = 50))) {}
-          Spacer(modifier = Modifier.size(8.dp))
-          Text(
-              text = peer.displayName,
-              style = MaterialTheme.typography.titleMedium,
-              color = textColor)
-        }
+            }
+        Box(
+            modifier =
+                Modifier.size(8.dp)
+                    .background(color = color, shape = RoundedCornerShape(percent = 50))) {}
+      },
+      headlineContent = {
+        Text(
+            text = peer.displayName,
+            style = MaterialTheme.typography.titleMedium,
+            color = textColor)
       },
       supportingContent = {
         Text(text = subtitle(), style = MaterialTheme.typography.bodyMedium, color = textColor)

@@ -4,17 +4,21 @@
 package com.tailscale.ipn.ui.view
 
 import android.text.format.Formatter
+import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -24,13 +28,19 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
@@ -79,10 +89,16 @@ fun TaildropView(
         Ipn.State.Running -> {
           val peers by viewModel.myPeers.collectAsState()
           val context = LocalContext.current
-          FileSharePeerList(
-              peers = peers,
-              stateViewGenerator = { peerId -> viewModel.TrailingContentForPeer(peerId = peerId) },
-              onShare = { viewModel.share(context, it) })
+          Box(
+            modifier = Modifier.background(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = RectangleShape),
+          ) {
+            FileSharePeerList(
+                peers = peers,
+                stateViewGenerator = { peerId -> viewModel.TrailingContentForPeer(peerId = peerId) },
+                onShare = { viewModel.share(context, it) })
+          }
         }
         else -> {
           FileShareConnectView { viewModel.startVPN() }
@@ -98,7 +114,8 @@ fun FileSharePeerList(
     stateViewGenerator: @Composable (String) -> Unit,
     onShare: (Tailcfg.Node) -> Unit
 ) {
-  SectionDivider(stringResource(R.string.my_devices))
+  var searchQuery by remember { mutableStateOf("") }
+  var onlineOnly by remember { mutableStateOf(false) }
 
   when (peers.isEmpty()) {
     true -> {
@@ -106,20 +123,51 @@ fun FileSharePeerList(
           modifier = Modifier.padding(horizontal = 8.dp).fillMaxHeight(),
           verticalArrangement = Arrangement.Center,
           horizontalAlignment = Alignment.CenterHorizontally) {
+            SectionDivider(stringResource(R.string.my_devices))
             Text(
                 stringResource(R.string.no_devices_to_share_with),
+                modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.titleMedium)
           }
     }
     false -> {
-      LazyColumn {
-        peers.forEach { peer ->
-          item {
-            PeerView(
-                peer = peer,
-                onClick = { onShare(peer) },
-                subtitle = { peer.Hostinfo.OS ?: "" },
-                trailingContent = { stateViewGenerator(peer.StableID) })
+      Column (
+        modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+      ){
+        SearchAndFilter(
+            searchQuery = searchQuery,
+            onSearchQueryChange = { searchQuery = it },
+            onlineOnly = onlineOnly,
+            onOnlineOnlyChange = { onlineOnly = it }
+        )
+        SectionDivider(stringResource(R.string.my_devices))
+
+        val filteredPeers = filterPeers(peers, searchQuery, onlineOnly)
+        if (filteredPeers.isEmpty()) {
+          Column(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+          ) {
+              Text(
+                  stringResource(R.string.no_devices_to_share_with),
+                  modifier = Modifier.padding(16.dp),
+                  textAlign = TextAlign.Center,
+                  style = MaterialTheme.typography.titleMedium)
+          }
+        } else {
+          LazyColumn(
+            modifier = Modifier.weight(1f)
+          ) {
+            items(filteredPeers) { peer ->
+                PeerView(
+                    peer = peer,
+                    onClick = { onShare(peer) },
+                    subtitle = { peer.Hostinfo.OS ?: "" },
+                    trailingContent = { stateViewGenerator(peer.StableID) })
+            }
           }
         }
       }
@@ -147,7 +195,7 @@ fun FileShareConnectView(onToggle: () -> Unit) {
 
 @Composable
 fun FileShareHeader(fileTransfers: List<Ipn.OutgoingFile>, totalSize: Long) {
-  Column(modifier = Modifier.padding(horizontal = 12.dp)) {
+  Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       IconForTransfer(fileTransfers)
       Column(modifier = Modifier.padding(horizontal = 8.dp)) {
@@ -194,7 +242,9 @@ fun IconForTransfer(transfers: List<Ipn.OutgoingFile>) {
           AsyncImage(
               model = transfers[0].uri,
               contentDescription = "one file",
-              modifier = Modifier.size(40.dp))
+              modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(8.dp)))
           return
         }
 
