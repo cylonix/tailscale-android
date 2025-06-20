@@ -97,20 +97,37 @@ class ShareActivity : ComponentActivity() {
             contentResolver?.query(uri, null, null, null, null)?.use { cursor ->
                 val nameCol = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                 val sizeCol = cursor.getColumnIndex(OpenableColumns.SIZE)
-    
+
                 if (cursor.moveToFirst()) {
                     val name: String = cursor.getString(nameCol)
                         ?: generateFallbackName(uri)
-                    val size: Long = cursor.getLong(sizeCol)
-                    Ipn.OutgoingFile(Name = name, DeclaredSize = size).apply {
+                    // __BEGIN CYLONIX_MOD__
+                    // On some devices, the size from the cursor may not match
+                    // the actual file size. This can happen if the file is
+                    // modified after the cursor was created.
+                    val cursorSize: Long = cursor.getLong(sizeCol)
+                    val actualSize = contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                        val statSize = pfd.statSize
+                        if (statSize != cursorSize) {
+                            TSLog.d(TAG, """File comparison for $name:
+                                |Cursor size: $cursorSize
+                                |Actual size (statSize): $statSize
+                                |Difference: ${statSize - cursorSize}
+                                |Uri: $uri""".trimMargin())
+                        }
+                        statSize
+                    } ?: cursorSize
+
+                    Ipn.OutgoingFile(Name = name, DeclaredSize = actualSize).apply {
                         this.uri = uri
                     }
+                    // __END CYLONIX_MOD__
                 } else {
                     TSLog.e(TAG, "Cursor is empty for URI: $uri")
                     null
                 }
             }
-        } ?: emptyList()    
+        } ?: emptyList()
 
     if (pendingFiles.isEmpty()) {
       TSLog.e(TAG, "Share failure - no files extracted from intent")

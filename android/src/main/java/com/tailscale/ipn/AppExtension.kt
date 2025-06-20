@@ -12,6 +12,8 @@ import kotlinx.coroutines.launch
 
 import com.tailscale.ipn.ui.model.Ipn
 import com.tailscale.ipn.ui.model.Ipn.Notify
+import com.tailscale.ipn.ui.notifier.Notifier
+import com.tailscale.ipn.util.TSLog
 import libtailscale.Libtailscale
 
 private const val MAX_LOG_SIZE = 500 * 1024 // 500KB
@@ -114,5 +116,15 @@ fun App.onIpnStateChanged(state: Ipn.State) {
 }
 
 fun App.sendCommand(cmd: String, args: String?): String {
+    if (cmd == "watch_notifications") {
+        restartNotifications()
+        return "Success"
+    }
     return Libtailscale.sendCommand(cmd, args ?: "")
+}
+
+fun App.restartNotifications() {
+    Notifier.stop()
+    Notifier.start(applicationScope)
+    TSLog.d(TAG, "Notifications restarted")
 }

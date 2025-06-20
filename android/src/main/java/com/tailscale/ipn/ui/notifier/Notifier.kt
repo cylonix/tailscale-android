@@ -3,6 +3,7 @@
 
 package com.tailscale.ipn.ui.notifier
 
+import android.util.Log
 import com.tailscale.ipn.App
 import com.tailscale.ipn.onNotificationReceived // __CYLONIX_MOD__
 import com.tailscale.ipn.ui.model.Empty
@@ -75,6 +76,7 @@ object Notifier {
               NotifyWatchOpt.RateLimitNetmaps.value
       manager =
           app.watchNotifications(mask.toLong()) { notification ->
+            //Log.d(TAG, "Received notification: ${notification}")
             val notify = decoder.decodeFromStream<Notify>(notification.inputStream())
             notify.State?.let { state.set(Ipn.State.fromInt(it)) }
             notify.NetMap?.let(netmap::set)

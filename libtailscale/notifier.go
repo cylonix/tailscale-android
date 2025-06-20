@@ -29,6 +29,7 @@ func (app *App) WatchNotifications(mask int, cb NotificationCallback) Notificati
 			log.Printf("error: WatchNotifications: marshal notify: %s", err)
 			return true
 		}
+		//log.Printf("WatchNotifications: notify=%s", len(b))
 		err = cb.OnNotify(b)
 		if err != nil {
 			log.Printf("error: WatchNotifications: OnNotify: %s", err)

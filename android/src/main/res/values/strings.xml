@@ -243,7 +243,7 @@
     <string name="switch_user_failed_title">Cannot switch to user</string>
     <string name="add_profile_failed_title">Unable to add profile</string>
     <string name="share_device_not_connected_title">Not connected</string>
-    <string name="taildrop_share_failed_title">Taildrop failed</string>
+    <string name="taildrop_share_failed_title">File drop failed</string>
 
     <!-- Strings for the intro screen -->
     <string name="getStarted">Get Started</string>

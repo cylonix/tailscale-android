@@ -39,7 +39,7 @@ func setupAppCommandHandler(a *App) {
 }
 
 func SendCommand(cmd, args string) string {
-	log.Printf("Received cmd: %v args: %v", cmd, args)
+	//log.Printf("Received cmd: %v args: %v", cmd, args)
 	if app == nil && isClientDependantCmd(cmd) {
 		return "App not initialized"
 	}
