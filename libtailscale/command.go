@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"tailscale.com/client/tailscale/apitype"
 	"tailscale.com/envknob"
 	"tailscale.com/ipn"
 )
@@ -64,11 +65,16 @@ func SendCommand(cmd, args string) string {
 		log.Printf("start login interactive success")
 		return "Success"
 	case "edit_prefs":
-		err := client.EditPrefs(args)
+		prefs := &ipn.Prefs{}
+		err := client.EditPrefs(args, prefs)
 		if err != nil {
 			return fmt.Sprintf("Error editing prefs: %v", err)
 		}
-		return "Success"
+		v, err := json.Marshal(prefs)
+		if err != nil {
+			return fmt.Sprintf("Error encoding prefs: %v", err)
+		}
+		return string(v)
 	case "profiles":
 		result := []ipn.LoginProfile{}
 		err := client.Profiles(&result)
@@ -121,6 +127,23 @@ func SendCommand(cmd, args string) string {
 		err := client.Logout()
 		if err != nil {
 			return fmt.Sprintf("Error logging out: %v", err)
+		}
+		return "Success"
+	case "get_waiting_files":
+		result := []apitype.WaitingFile{}
+		err := client.WaitingFiles(&result)
+		if err != nil {
+			return fmt.Sprintf("Error getting waiting files: %v", err)
+		}
+		v, err := json.Marshal(result)
+		if err != nil {
+			return fmt.Sprintf("Error encoding waiting files: %v", err)
+		}
+		return string(v)
+	case "delete_file":
+		err := client.DeleteFile(args)
+		if err != nil {
+			return fmt.Sprintf("Error deleting file '%v': %v", args, err)
 		}
 		return "Success"
 	case "set_env_knobs":

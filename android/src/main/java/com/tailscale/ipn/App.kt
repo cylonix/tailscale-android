@@ -156,7 +156,7 @@ open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwne
     // an app local directory "Taildrop" if we cannot create that.  This mode does not support
     // user notifications for incoming files.
     val directFileDir = this.prepareDownloadsFolder()
-    app = Libtailscale.start(dataDir, directFileDir.absolutePath, this)
+    app = Libtailscale.start(dataDir, directFileDir, this) // __CYLONIX_MOD__
     Request.setApp(app)
     Notifier.setApp(app)
     Notifier.start(applicationScope)
@@ -302,7 +302,15 @@ open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwne
     return sb.toString()
   }
 
-  private fun prepareDownloadsFolder(): File {
+  private fun prepareDownloadsFolder(): String { // __CYLONIX_MOD__
+    // __BEGIN CYLONIX_MOD__
+    // Check if the device is running Android 10 or higher
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+          TSLog.w(TAG, "Direct access to Downloads folder is restricted on Android 10+")
+        return ""
+    }
+    // __END_CYLONIX_MOD__
+
     var downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
 
     try {
@@ -322,7 +330,7 @@ open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwne
       }
     }
 
-    return downloads
+    return downloads.absolutePath // __CYLONIX_MOD__
   }
 
   @Throws(

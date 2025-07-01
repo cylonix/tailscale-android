@@ -270,6 +270,7 @@ func (a *App) newBackend(dataDir, directFileRoot string, appCtx AppContext, stor
 	} else {
 		logID.UnmarshalText([]byte(storedLogID))
 	}
+	logf("Direct file root: %s", directFileRoot) // __CYLONIX_MOD__
 
 	netMon, err := netmon.New(logf)
 	if err != nil {

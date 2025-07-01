@@ -33,7 +33,7 @@ const (
 	endpointTKASign           = "tka/sign"
 	endpointTKAVerifyDeepLink = "tka/verify-deeplink"
 	endpointPing              = "ping"
-	endpointFiles             = "files"
+	endpointFiles             = "files/"
 	endpointFilePut           = "file-put/"
 	endpointTailfsServerAddr  = "tailfs/fileserver-address"
 	endpointEnableExitNode    = "set-use-exit-node-enabled"
@@ -57,8 +57,8 @@ func (c *Client) StartLoginInteractive() error {
 	return err
 }
 
-func (c *Client) EditPrefs(prefsJsonString string) error {
-	return c.patch(endpointPrefs, []byte(prefsJsonString), nil)
+func (c *Client) EditPrefs(prefsJsonString string, result interface {}) error {
+	return c.patch(endpointPrefs, []byte(prefsJsonString), result)
 }
 
 func (c *Client) Profiles(result interface{}) error {
@@ -115,6 +115,14 @@ func (c *Client) Status() (string, error) {
 
 func (c *Client) Logout() error {
 	return c.post(endpointLogout, 0, nil, nil)
+}
+
+func (c *Client) WaitingFiles(result interface{}) error {
+	return c.get(endpointFiles, result)
+}
+
+func (c *Client) DeleteFile(filename string) error {
+	return c.delete(endpointFiles+filename, nil, nil)
 }
 
 type countingByteStreamAdapter struct {
@@ -236,6 +244,18 @@ func (c *Client) PutTaildropFiles(peerID string, files []OutgoingFile, result in
 
 func (c *Client) get(path string, result interface{}) error {
 	resp, err := c.app.CallLocalAPI(defaultTimeout(), "GET", "/localapi/v0/"+path, nil)
+	if err != nil {
+		return fmt.Errorf("calling local API: %w", err)
+	}
+	return handleResponse(resp, result)
+}
+
+func (c *Client) delete(path string, body []byte, result interface{}) error {
+	var input *inputStreamAdapter
+	if body != nil {
+		input = &inputStreamAdapter{data: body}
+	}
+	resp, err := c.app.CallLocalAPI(defaultTimeout(), "DELETE", "/localapi/v0/"+path, input)
 	if err != nil {
 		return fmt.Errorf("calling local API: %w", err)
 	}
