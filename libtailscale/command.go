@@ -3,7 +3,6 @@ package libtailscale
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"strconv"
@@ -141,34 +140,15 @@ func SendCommand(cmd, args string) string {
 			return fmt.Sprintf("Error encoding waiting files: %v", err)
 		}
 		return string(v)
-	case "get":
-		paths := strings.Split(args, ":")
-		if len(paths) != 2 {
-			return "Error: expected two arguments separated by a colon (path:filename)"
-		}
-		filename := paths[0]
-		toPath := paths[1]
-		// Open the file at toPath for writing
-		// Direct access to the backend instead of using client since it
-		// it is quite a convoluted way to get the file from the backend
-		w, err := os.Create(toPath)
-		if err != nil {
-			return fmt.Sprintf("Error creating file '%v': %v", toPath, err)
-		}
-		defer w.Close()
+	case "get_file_path":
 		if app == nil || app.backend == nil {
 			return "Error: app backend not initialized"
 		}
-		rc, _, err := app.backend.OpenFile(filename)
+		path, err := app.backend.GetFilePath(args)
 		if err != nil {
-			return fmt.Sprintf("Error getting file: cannot open '%v': %v", filename, err)
+			return fmt.Sprintf("Error getting file: %v", err)
 		}
-		defer rc.Close()
-		n, err := io.Copy(w, rc)
-		if err != nil {
-			return fmt.Sprintf("Error copying file '%v' to '%v': %v", filename, toPath, err)
-		}
-		return fmt.Sprintf("Success: wrote %d bytes to '%v'", n, toPath)
+		return path
 	case "delete_file":
 		err := client.DeleteFile(args)
 		if err != nil {
