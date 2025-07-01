@@ -224,6 +224,7 @@
 
     <!-- Strings for the share activity -->
     <string name="share">Send to Cyloinx devices</string>
+    <string name="close">Close</string>
     <string name="share_device_not_connected">Unable to share files with this device. This device is not currently connected.</string>
     <string name="no_files_to_share">No files to share</string>
     <string name="file_count">%1$s files</string>

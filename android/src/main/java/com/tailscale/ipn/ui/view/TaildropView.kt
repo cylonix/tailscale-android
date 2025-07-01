@@ -4,6 +4,7 @@
 package com.tailscale.ipn.ui.view
 
 import android.text.format.Formatter
+import androidx.activity.ComponentActivity // __CYLONIX_MOD__
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,11 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -55,10 +61,12 @@ import com.tailscale.ipn.util.TSLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaildropView(
     requestedTransfers: StateFlow<List<Ipn.OutgoingFile>>,
     applicationScope: CoroutineScope,
+    activity: ComponentActivity, // __CYLONIX_MOD__
     viewModel: TaildropViewModel =
         viewModel(factory = TaildropViewModelFactory(requestedTransfers, applicationScope))
 ) {
@@ -74,7 +82,17 @@ fun TaildropView(
     }
   }
 
-  Scaffold(contentWindowInsets = WindowInsets.statusBars, topBar = { Header(R.string.share) }) {
+  Scaffold(contentWindowInsets = WindowInsets.statusBars, topBar = { TopAppBar(
+    title = { Text(stringResource(R.string.share)) },
+    navigationIcon = {
+      IconButton(onClick = { activity.finish() }) { // Close the activity
+        Icon(
+          imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+          contentDescription = stringResource(R.string.close),
+        )
+      }
+    }
+  )}) {
       paddingInsets ->
     Column(modifier = Modifier.focusRequester(focusRequester).focusable().padding(paddingInsets)) {
       val showDialog = viewModel.showDialog.collectAsState().value

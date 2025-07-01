@@ -40,7 +40,7 @@ class ShareActivity : ComponentActivity() {
       AppTheme {
         Surface(color = MaterialTheme.colorScheme.inverseSurface) { // Background for the letterbox
           Surface(modifier = Modifier.universalFit()) {
-            TaildropView(requestedTransfers, (application as App).applicationScope)
+            TaildropView(requestedTransfers, (application as App).applicationScope, activity = this) // __CYL
           }
         }
       }
