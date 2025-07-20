@@ -5,7 +5,9 @@ package libtailscale
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/url"
 	"os"
@@ -57,7 +59,7 @@ func (c *Client) StartLoginInteractive() error {
 	return err
 }
 
-func (c *Client) EditPrefs(prefsJsonString string, result interface {}) error {
+func (c *Client) EditPrefs(prefsJsonString string, result interface{}) error {
 	return c.patch(endpointPrefs, []byte(prefsJsonString), result)
 }
 
@@ -136,6 +138,17 @@ func (b *countingByteStreamAdapter) Read() ([]byte, error) {
 	if n > 0 {
 		b.n.Add(int64(n))
 	}
+	if err != nil {
+		// Handle EOF condition
+		if errors.Is(err, io.EOF) {
+			if n > 0 {
+				// Return the last chunk of data
+				return buf[:n], nil
+			}
+			// No more data to return
+			return nil, nil
+		}
+	}
 	return buf[:n], err
 }
 
@@ -151,24 +164,49 @@ type fileStreamAdapter struct {
 	f      *os.File
 	n      atomic.Int64
 	buffer []byte
+	eof    bool
 }
 
 func newFileStreamAdapter(f *os.File) *fileStreamAdapter {
 	return &fileStreamAdapter{
 		f:      f,
 		buffer: make([]byte, 32*1024), // 32KB buffer
+		eof:    false,
 	}
 }
 
 func (fs *fileStreamAdapter) Read() ([]byte, error) {
+	// Return nil, nil if we've reached EOF in a previous read
+	if fs.eof {
+		return nil, nil
+	}
+
 	n, err := fs.f.Read(fs.buffer)
 	if n > 0 {
 		fs.n.Add(int64(n))
 	}
-	return fs.buffer[:n], err
+
+	if err != nil {
+		// Handle EOF condition
+		if errors.Is(err, io.EOF) {
+			fs.eof = true
+			if n > 0 {
+				// Return the last chunk of data
+				return fs.buffer[:n], nil
+			}
+			// No more data to return
+			return nil, nil
+		}
+
+		log.Printf("Error reading file: %v", err)
+		return nil, err
+	}
+
+	return fs.buffer[:n], nil
 }
 
 func (fs *fileStreamAdapter) Close() error {
+	fs.eof = true
 	return fs.f.Close()
 }
 
