@@ -438,6 +438,7 @@ open class UninitializedApp : Application() {
             )
 
     try {
+      TSLog.d(TAG, "startVPN: Starting VPN service")
       pendingIntent.send()
     } catch (foregroundServiceStartException: IllegalStateException) {
       TSLog.e(
@@ -453,6 +454,7 @@ open class UninitializedApp : Application() {
   fun stopVPN() {
     val intent = Intent(this, IPNService::class.java).apply { action = IPNService.ACTION_STOP_VPN }
     try {
+      TSLog.d(TAG, "stopVPN: Stopping VPN service")
       startService(intent)
     } catch (illegalStateException: IllegalStateException) {
       TSLog.e(TAG, "stopVPN hit IllegalStateException in startService(): $illegalStateException")
@@ -462,25 +464,15 @@ open class UninitializedApp : Application() {
   }
 
   fun restartVPN() {
-    // Register a receiver to listen for the completion of stopVPN
-    val stopReceiver =
-        object : BroadcastReceiver() {
-          override fun onReceive(context: Context?, intent: Intent?) {
-            // Ensure stop intent is complete
-            if (intent?.action == IPNService.ACTION_STOP_VPN) {
-              // Unregister receiver after receiving the broadcast
-              context?.unregisterReceiver(this)
-              // Now start the VPN
-              startVPN()
-            }
-          }
-        }
-
-    // Register the receiver before stopping VPN
-    val intentFilter = IntentFilter(IPNService.ACTION_STOP_VPN)
-    this.registerReceiver(stopReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED)
-
-    stopVPN()
+    val intent =
+        Intent(this, IPNService::class.java).apply { action = IPNService.ACTION_RESTART_VPN }
+    try {
+      startService(intent)
+    } catch (illegalStateException: IllegalStateException) {
+      TSLog.e(TAG, "restartVPN hit IllegalStateException in startService(): $illegalStateException")
+    } catch (e: Exception) {
+      TSLog.e(TAG, "restartVPN hit exception in startService(): $e")
+    }
   }
 
   fun createNotificationChannel(id: String, name: String, description: String, importance: Int) {
@@ -523,7 +515,6 @@ open class UninitializedApp : Application() {
             buttonIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
-    /* // __BEGIN)CYLONIX_MOD__
     val intent =
         Intent(this, MainActivity::class.java).apply {
           flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -531,7 +522,6 @@ open class UninitializedApp : Application() {
     val pendingIntent: PendingIntent =
         PendingIntent.getActivity(
             this, 1, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-    */ // __END_CYLONIX_MOD__
 
     val builder =
         NotificationCompat.Builder(this, STATUS_CHANNEL_ID)
@@ -543,7 +533,7 @@ open class UninitializedApp : Application() {
             .setOngoing(vpnRunning)
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            //.setContentIntent(pendingIntent) // __CYLONIX_MOD__ Commented out to avoid MainActivity launch
+            .setContentIntent(pendingIntent)
     if (!vpnRunning || !hideDisconnectAction) {
       builder.addAction(
           NotificationCompat.Action.Builder(0, actionLabel, pendingButtonIntent).build())

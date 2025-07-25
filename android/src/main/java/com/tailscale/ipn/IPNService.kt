@@ -46,6 +46,13 @@ open class IPNService : VpnService(), libtailscale.IPNService {
           close()
           START_NOT_STICKY
         }
+        ACTION_RESTART_VPN -> {
+          app.setWantRunning(false){
+            close()
+            app.startVPN()
+          }
+          START_NOT_STICKY
+        }
         ACTION_START_VPN -> {
           scope.launch {
             // Collect the first value of hideDisconnectAction asynchronously.
@@ -124,14 +131,13 @@ open class IPNService : VpnService(), libtailscale.IPNService {
     }
   }
 
-  /* // __BEGIN_CYLONIX_MOD__
   private fun configIntent(): PendingIntent {
     return PendingIntent.getActivity(
         this,
         0,
         Intent(this, MainActivity::class.java),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-  } */ // __CYLONIX_MOD__
+  }
 
   private fun disallowApp(b: Builder, name: String) {
     try {
@@ -144,7 +150,7 @@ open class IPNService : VpnService(), libtailscale.IPNService {
   override fun newBuilder(): VPNServiceBuilder {
     val b: Builder =
         Builder()
-            //.setConfigureIntent(configIntent()) // __CYLONIX_MOD__
+            .setConfigureIntent(configIntent())
             .allowFamily(OsConstants.AF_INET)
             .allowFamily(OsConstants.AF_INET6)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -178,5 +184,6 @@ open class IPNService : VpnService(), libtailscale.IPNService {
   companion object {
     const val ACTION_START_VPN = "com.tailscale.ipn.START_VPN"
     const val ACTION_STOP_VPN = "com.tailscale.ipn.STOP_VPN"
+    const val ACTION_RESTART_VPN = "com.tailscale.ipn.RESTART_VPN"
   }
 }
