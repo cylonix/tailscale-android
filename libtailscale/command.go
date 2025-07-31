@@ -195,7 +195,7 @@ func SendCommand(cmd, args string) string {
 		}
 		return "Success: " + result
 	default:
-		return fmt.Sprintf("Unknown command: %v", cmd)
+		return fmt.Sprintf("Error: unknown command: %v", cmd)
 	}
 }
 
