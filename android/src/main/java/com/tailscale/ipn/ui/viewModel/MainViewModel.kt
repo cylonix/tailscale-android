@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import java.time.Duration
+import android.util.Log
 
 class MainViewModelFactory(private val vpnViewModel: VpnViewModel) : ViewModelProvider.Factory {
   @Suppress("UNCHECKED_CAST")
@@ -178,8 +179,10 @@ class MainViewModel(private val vpnViewModel: VpnViewModel) : IpnViewModel() {
   }
 
   fun showVPNPermissionLauncherIfUnauthorized() {
+    Log.d(TAG, "showVPNPermissionLauncherIfUnauthorized called")
     val vpnIntent = VpnService.prepare(App.get())
     if (vpnIntent != null) {
+      Log.d(TAG, "Launching VPN permission intent")
       vpnPermissionLauncher?.launch(vpnIntent)
     } else {
       vpnViewModel.setVpnPrepared(true)

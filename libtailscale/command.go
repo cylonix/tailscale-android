@@ -112,9 +112,27 @@ func SendCommand(cmd, args string) string {
 		}
 		return "Success"
 	case "ping":
-		result, err := client.Ping(args)
+		list := strings.Split(args, " ")
+		ip := list[0]
+		pingType := "disco"
+		if len(list) == 2 {
+			pingType = list[1]
+		}
+		result, err := client.Ping(ip, pingType)
 		if err != nil {
-			return fmt.Sprintf("Error pinging: %v", err)
+			return fmt.Sprintf("Error pinging %v (%v): %v", ip, pingType, err)
+		}
+		return result
+	case "dns_query":
+		list := strings.Split(args, " ")
+		name := list[0]
+		queryType := ""
+		if len(list) == 2 {
+			queryType = list[1]
+		}
+		result, err := client.DNSQuery(name, queryType)
+		if err != nil {
+			return fmt.Sprintf("Error querying %v (type=%v): %v", name, queryType, err)
 		}
 		return result
 	case "status":

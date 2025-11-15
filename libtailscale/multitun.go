@@ -9,6 +9,8 @@ import (
 	"runtime/debug"
 
 	"github.com/tailscale/wireguard-go/tun"
+	"tailscale.com/net/tsdial"
+	"tailscale.com/wgengine"
 )
 
 // multiTUN implements a tun.Device that supports multiple
@@ -30,6 +32,9 @@ type multiTUN struct {
 	names        chan chan nameReply
 	shutdowns    chan struct{}
 	shutdownDone chan struct{}
+
+	dialer *tsdial.Dialer  // __CYLONIX_ADD__
+	engine wgengine.Engine // __CYLONIX_ADD__
 }
 
 // tunDevice wraps and drives a single run.Device.
@@ -254,6 +259,18 @@ func (d *multiTUN) runDevice(dev *tunDevice) {
 
 func (d *multiTUN) add(dev tun.Device) {
 	d.devices <- dev
+	// __BEGIN_CYLONIX_ADD__
+	if d.dialer != nil {
+		name, err := d.Name()
+		if err == nil {
+			d.dialer.SetTUNName(name)
+			d.engine.SetTunnelName(name)
+		} else {
+			log.Printf("multiTUN.add failed to get name: %v\n", err)
+		}
+	}
+	// __END_CYLONIX_ADD__
+
 }
 
 func (d *multiTUN) File() *os.File {
@@ -309,3 +326,14 @@ func (d *multiTUN) BatchSize() int {
 	// batching. File a bug.
 	return 1
 }
+
+// __BEGIN_CYLONIX_ADD__
+func (d *multiTUN) SetDialer(dialer *tsdial.Dialer) {
+	d.dialer = dialer
+}
+
+func (d *multiTUN) SetEngine(engine wgengine.Engine) {
+	d.engine = engine
+}
+
+// __END_CYLONIX_ADD__

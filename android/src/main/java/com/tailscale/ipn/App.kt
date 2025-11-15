@@ -170,6 +170,8 @@ open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwne
               Pair(state, forceEnabled)
             }
             .collect { (state, hideDisconnectAction) ->
+              onIpnStateChanged(state) // __CYLONIX_MOD__
+
               val ableToStartVPN = state > Ipn.State.NeedsMachineAuth
               // If VPN is stopped, show a disconnected notification. If it is running as a
               // foreground
@@ -186,7 +188,6 @@ open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwne
               if (vpnRunning) {
                 notifyStatus(vpnRunning = true, hideDisconnectAction = hideDisconnectAction.value)
               }
-              onIpnStateChanged(state) // __CYLONIX_MOD__
             }
       }
     }

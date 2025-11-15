@@ -279,6 +279,8 @@ func (a *App) newBackend(dataDir, directFileRoot string, appCtx AppContext, stor
 	b.netMon = netMon
 	b.setupLogs(dataDir, logID, logf, sys.HealthTracker())
 	dialer := new(tsdial.Dialer)
+	dialer.Logf = logf
+	b.devices.SetDialer(dialer) // __CYLONIX_ADD__
 	vf := &VPNFacade{
 		SetBoth:           b.setCfg,
 		GetBaseConfigFunc: b.getDNSBaseConfig,
@@ -293,12 +295,14 @@ func (a *App) newBackend(dataDir, directFileRoot string, appCtx AppContext, stor
 		NetMon:         b.netMon,
 		HealthTracker:  sys.HealthTracker(),
 		Metrics:        sys.UserMetricsRegistry(),
+		ControlKnobs:   sys.ControlKnobs(), // __CYLONIX_ADD__
 		DriveForLocal:  driveimpl.NewFileSystemForLocal(logf),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("runBackend: NewUserspaceEngine: %v", err)
 	}
 	sys.Set(engine)
+	b.devices.SetEngine(engine) // __CYLONIX_ADD__
 	b.logIDPublic = logID.Public()
 	ns, err := netstack.Create(logf, sys.Tun.Get(), engine, sys.MagicSock.Get(), dialer, sys.DNSManager.Get(), sys.ProxyMapper())
 	if err != nil {

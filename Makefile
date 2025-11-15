@@ -75,6 +75,12 @@ export AVD
 GOTOOLCHAIN=local
 export GOTOOLCHAIN
 
+# __BEGIN_CYLONIX_ADD__
+# 16KB page support on Android 15+
+GOARM64=v8.0
+export GOARM64
+# __END_CYLONIX_ADD__
+
 # TOOLCHAINDIR is set by fdoid CI and used by tool/* scripts.
 TOOLCHAINDIR ?=
 export TOOLCHAINDIR
@@ -151,7 +157,7 @@ $(LIBTAILSCALE): Makefile android/libs $(shell find libtailscale -name *.go) go.
     # __BEGIN_CYLONIX_MOD__
     # Temp workaround before cylonix fork of tailscale is published.
 	sh scripts/cylonix_build.sh $(VERSIONNAME) $(VERSIONNAME_SHORT) $(OUR_VERSION)
-	$(GOBIN)/gomobile bind -target android -androidapi 26 \
+	GOARM64=v8.0 $(GOBIN)/gomobile bind -target android -androidapi 26 \
 		-tags "$$(./build-tags.sh)" \
 		-ldflags "-w $$(./version-ldflags.sh)" \
 		-o $@ ./libtailscale \

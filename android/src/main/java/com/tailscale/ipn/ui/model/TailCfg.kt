@@ -83,6 +83,8 @@ class Tailcfg {
       var Created: Time,
       var LastSeen: Time? = null,
       var Online: Boolean? = null,
+      var IsJailed: Boolean? = null,
+      var IsWireGuardOnly: Boolean? = null,
       var Capabilities: List<String>? = null,
       var CapMap: Map<String, JsonElement?>? = null,
       var ComputedName: String?,

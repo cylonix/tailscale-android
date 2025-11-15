@@ -13,6 +13,7 @@ import (
 	"os"
 	"sync/atomic"
 
+	"tailscale.com/client/tailscale/apitype"
 	"tailscale.com/ipn"
 	"tailscale.com/ipn/ipnstate"
 )
@@ -21,6 +22,7 @@ const (
 	endpointDebug             = "debug"
 	endpointDebugLog          = "debug-log"
 	endpointBugReport         = "bugreport"
+	endpointDNSQuery          = "dns-query" // __CYLONIX_ADD__
 	endpointPrefs             = "prefs"
 	endpointFileTargets       = "file-targets"
 	endpointUploadMetrics     = "upload-client-metrics"
@@ -79,14 +81,32 @@ func (c *Client) SwitchProfile(profile ipn.ProfileID) error {
 	return c.post(endpointProfiles+url.PathEscape(string(profile)), 0, nil, nil)
 }
 
-func (c *Client) Ping(ip string) (string, error) {
+func (c *Client) Ping(ip, pingType string) (string, error) {
 	result := &ipnstate.PingResult{}
-	if err := c.post(endpointPing+"?ip="+url.QueryEscape(ip)+"&type=disco", 2000, nil, result); err != nil {
-		result.Err = err.Error()
+	if err := c.post(
+		endpointPing+"?ip="+url.QueryEscape(ip)+"&type="+pingType,
+		2000, nil, result,
+	); err != nil {
+		result.Err = fmt.Sprintf("PING err: %v: %v", pingType, err)
 	}
 	v, err := json.Marshal(result)
 	if err != nil {
 		return "", fmt.Errorf("marshaling ping result: %w", err)
+	}
+	return string(v), nil
+}
+
+func (c *Client) DNSQuery(name, queryType string) (string, error) {
+	result := &apitype.DNSQueryResponse{}
+	if err := c.get(
+		endpointDNSQuery+"?name="+url.QueryEscape(name)+"&type="+url.QueryEscape(queryType),
+		result,
+	); err != nil {
+		return "", fmt.Errorf("failed to query dns err: %v: %w", queryType, err)
+	}
+	v, err := json.Marshal(result)
+	if err != nil {
+		return "", fmt.Errorf("marshaling query response: %w", err)
 	}
 	return string(v), nil
 }
