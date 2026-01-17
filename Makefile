@@ -156,8 +156,10 @@ $(GOBIN)/gobind: go.mod go.sum
 $(LIBTAILSCALE): Makefile android/libs $(shell find libtailscale -name *.go) go.mod go.sum $(GOBIN)/gomobile tailscale.version
     # __BEGIN_CYLONIX_MOD__
     # Temp workaround before cylonix fork of tailscale is published.
+	echo "Building libtailscale AAR"
+	echo "GOARM64=$(GOARM64) GOBIN=$(GOBIN)"
 	sh scripts/cylonix_build.sh $(VERSIONNAME) $(VERSIONNAME_SHORT) $(OUR_VERSION)
-	GOARM64=v8.0 $(GOBIN)/gomobile bind -target android -androidapi 26 \
+	GOARM64=v8.0 GOMAXPROCS=4 $(GOBIN)/gomobile bind -target android -androidapi 26 \
 		-tags "$$(./build-tags.sh)" \
 		-ldflags "-w $$(./version-ldflags.sh)" \
 		-o $@ ./libtailscale \

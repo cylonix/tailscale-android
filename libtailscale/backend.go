@@ -219,6 +219,15 @@ func (a *App) runBackend(ctx context.Context) error {
 			// See https://github.com/tailscale/corp/issues/13814
 			b.backend.DebugRebind()
 
+			// __BEGIN_CYLONIX_ADD__
+			// Reset noise connections to force new protected connections.
+			// Any noise connections established before SetAndroidProtectFunc was set
+			// will have unprotected sockets that may route through the VPN tunnel,
+			// causing routing loops or connectivity failures.
+			b.backend.ResetNoiseConnections()
+			log.Printf("onVPNRequested: reset noise connections")
+			// __END_CYLONIX_ADD__
+
 			vpnService.service = s
 
 			if networkMap != nil {
