@@ -276,7 +276,9 @@ func (a *App) newBackend(dataDir, directFileRoot string, appCtx AppContext, stor
 				store.write(logPrefKey, enc)
 			}
 		}
+		logf("Generated new logID: %s (%s), err: %v", logID, newLogID, err)
 	} else {
+		logf("Read logID from store: %s", storedLogID)
 		logID.UnmarshalText([]byte(storedLogID))
 	}
 	logf("Direct file root: %s", directFileRoot) // __CYLONIX_MOD__

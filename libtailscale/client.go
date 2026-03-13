@@ -19,10 +19,13 @@ import (
 )
 
 const (
+	endpointCap               = "cap"
 	endpointDebug             = "debug"
 	endpointDebugLog          = "debug-log"
 	endpointBugReport         = "bugreport"
 	endpointDNSQuery          = "dns-query" // __CYLONIX_ADD__
+	endpointEnvKnob           = "envknob"
+	endpointL2RelayCapture    = "l2relay-capture"
 	endpointPrefs             = "prefs"
 	endpointFileTargets       = "file-targets"
 	endpointUploadMetrics     = "upload-client-metrics"
@@ -49,6 +52,26 @@ type Client struct {
 
 func NewClient(app Application) *Client {
 	return &Client{app: app}
+}
+
+func (c *Client) AddDelNodeCapability(cap, op string) error {
+	return c.post(endpointCap+"?cap="+url.QueryEscape(cap)+"&op="+url.QueryEscape(op), 5000, nil, nil)
+}
+
+func (c *Client) SetEnvKnob(setting string) error {
+	return c.post(fmt.Sprintf("%s?env=%s", endpointEnvKnob, url.QueryEscape(setting)), 5000, nil, nil)
+}
+
+func (c *Client) SetL2RelayCaptureEnabled(on bool) error {
+	return c.post(fmt.Sprintf("%s?enabled=%t", endpointL2RelayCapture, on), 5000, nil, nil)
+}
+
+func (c *Client) L2RelayCaptureEnabled() (bool, error) {
+	result := map[string]bool{}
+	if err := c.get(endpointL2RelayCapture, &result); err != nil {
+		return false, err
+	}
+	return result["enabled"], nil
 }
 
 func (c *Client) Start(optionsJsonString string) error {

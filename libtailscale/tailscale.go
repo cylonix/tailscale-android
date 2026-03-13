@@ -7,6 +7,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"runtime/debug"
 	"time"
@@ -97,16 +98,26 @@ func (b *backend) setupLogs(logDir string, logID logid.PrivateID, logf logger.Lo
 	if b.netMon == nil {
 		panic("netMon must be created prior to SetupLogs")
 	}
-	transport := logpolicy.NewLogtailTransport(logtail.DefaultHost, b.netMon, health, log.Printf)
+
+	logURL := logpolicy.LogURL()
+	u, _ := url.Parse(logURL)
+	logHost := u.Host
+	logClient := &http.Client{Transport: logpolicy.TransportOptions{
+		Host:   logHost,
+		NetMon: b.netMon,
+		Health: health,
+		Logf:   logf,
+	}.New()}
 
 	logcfg := logtail.Config{
+		BaseURL:             logURL,
 		Collection:          logtail.CollectionNode,
 		PrivateID:           logID,
 		Stderr:              log.Writer(),
 		MetricsDelta:        clientmetric.EncodeLogTailMetricsDelta,
 		IncludeProcID:       true,
 		IncludeProcSequence: true,
-		HTTPC:               &http.Client{Transport: transport},
+		HTTPC:               logClient,
 		CompressLogs:        true,
 	}
 	logcfg.FlushDelayFn = func() time.Duration { return 2 * time.Minute }

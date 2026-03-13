@@ -3,8 +3,10 @@
 package com.tailscale.ipn
 
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.wifi.WifiManager
 import android.net.VpnService
 import android.os.Build
 import android.system.OsConstants
@@ -23,6 +25,7 @@ open class IPNService : VpnService(), libtailscale.IPNService {
   private val TAG = "IPNService"
   private val randomID: String = UUID.randomUUID().toString()
   private lateinit var app: App
+  private var multicastLock: WifiManager.MulticastLock? = null
   val scope = CoroutineScope(Dispatchers.IO)
 
   override fun id(): String {
@@ -37,6 +40,7 @@ open class IPNService : VpnService(), libtailscale.IPNService {
     super.onCreate()
     // grab app to make sure it initializes
     app = App.get()
+    ensureMulticastLock()
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int =
@@ -54,6 +58,7 @@ open class IPNService : VpnService(), libtailscale.IPNService {
           START_NOT_STICKY
         }
         ACTION_START_VPN -> {
+          ensureMulticastLock()
           scope.launch {
             // Collect the first value of hideDisconnectAction asynchronously.
             val hideDisconnectAction = MDMSettings.forceEnabled.flow.first()
@@ -64,6 +69,7 @@ open class IPNService : VpnService(), libtailscale.IPNService {
           START_STICKY
         }
         "android.net.VpnService" -> {
+          ensureMulticastLock()
           // This means we were started by Android due to Always On VPN.
           // We show a non-foreground notification because we weren't
           // started as a foreground service.
@@ -80,6 +86,7 @@ open class IPNService : VpnService(), libtailscale.IPNService {
           // This means that we were restarted after the service was killed
           // (potentially due to OOM).
           if (UninitializedApp.get().isAbleToStartVPN()) {
+            ensureMulticastLock()
             scope.launch {
               // Collect the first value of hideDisconnectAction asynchronously.
               val hideDisconnectAction = MDMSettings.forceEnabled.flow.first()
@@ -97,6 +104,7 @@ open class IPNService : VpnService(), libtailscale.IPNService {
   override fun close() {
     app.setWantRunning(false) {}
     Notifier.setState(Ipn.State.Stopping)
+    releaseMulticastLock()
     disconnectVPN()
     Libtailscale.serviceDisconnect(this)
   }
@@ -185,5 +193,39 @@ open class IPNService : VpnService(), libtailscale.IPNService {
     const val ACTION_START_VPN = "com.tailscale.ipn.START_VPN"
     const val ACTION_STOP_VPN = "com.tailscale.ipn.STOP_VPN"
     const val ACTION_RESTART_VPN = "com.tailscale.ipn.RESTART_VPN"
+  }
+
+  private fun ensureMulticastLock() {
+    try {
+      if (multicastLock?.isHeld == true) {
+        return
+      }
+      val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+      if (wifiManager == null) {
+        TSLog.d(TAG, "WifiManager unavailable; skipping multicast lock")
+        return
+      }
+      val lock = wifiManager.createMulticastLock("cylonix-l2relay-mdns")
+      lock.setReferenceCounted(false)
+      lock.acquire()
+      multicastLock = lock
+      TSLog.d(TAG, "Acquired Wi-Fi multicast lock for discovery relay")
+    } catch (e: Exception) {
+      TSLog.e(TAG, "Failed to acquire multicast lock: $e")
+    }
+  }
+
+  private fun releaseMulticastLock() {
+    try {
+      multicastLock?.let { lock ->
+        if (lock.isHeld) {
+          lock.release()
+        }
+      }
+      multicastLock = null
+      TSLog.d(TAG, "Released Wi-Fi multicast lock for discovery relay")
+    } catch (e: Exception) {
+      TSLog.e(TAG, "Failed to release multicast lock: $e")
+    }
   }
 }

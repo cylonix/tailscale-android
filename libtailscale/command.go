@@ -193,6 +193,38 @@ func SendCommand(cmd, args string) string {
 			log.Printf("TS_DEBUG_ALWAYS_USE_DERP set to %v", v)
 		}
 		return "Success"
+	case "set_l2relay_capture":
+		if args == "" {
+			return "Error: no arguments provided"
+		}
+		on, err := strconv.ParseBool(args)
+		if err != nil {
+			return fmt.Sprintf("Error: invalid bool value %q: %v", args, err)
+		}
+		if err := client.SetL2RelayCaptureEnabled(on); err != nil {
+			return fmt.Sprintf("Error setting l2relay capture: %v", err)
+		}
+		return "Success"
+	case "get_l2relay_capture":
+		on, err := client.L2RelayCaptureEnabled()
+		if err != nil {
+			return fmt.Sprintf("Error getting l2relay capture: %v", err)
+		}
+		if on {
+			return "1"
+		}
+		return "0"
+	case "add_del_cap":
+		argsSlice := strings.Split(args, " ")
+		if len(argsSlice) != 2 {
+			return "Error: insufficient arguments for add_del_cap"
+		}
+		cap := argsSlice[0]
+		op := argsSlice[1]
+		if err := client.AddDelNodeCapability(cap, op); err != nil {
+			return "Error: " + err.Error()
+		}
+		return "Success"
 	case "get_env_knob":
 		if args == "" {
 			return "Error: no arguments provided"
