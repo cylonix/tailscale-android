@@ -147,6 +147,13 @@ func (a *App) runBackend(ctx context.Context, hardwareAttestation bool) error {
 	}
 	defer b.CloseTUNs()
 
+	// __BEGIN_CYLONIX_ADD__
+	// Wire the cylonix SendCommand JNI entry point to this App so the cylonix
+	// flutter app can drive status / login / prefs through the libtailscale
+	// LocalAPI client wrapper in client.go.
+	setupAppCommandHandler(a)
+	// __END_CYLONIX_ADD__
+
 	hc := localapi.HandlerConfig{
 		Actor:    ipnauth.Self,
 		Backend:  b.backend,
@@ -234,6 +241,15 @@ func (a *App) runBackend(ctx context.Context, hardwareAttestation bool) error {
 			// which restores connectivity.
 			// See https://github.com/tailscale/corp/issues/13814
 			b.backend.DebugRebind()
+
+			// __BEGIN_CYLONIX_ADD__
+			// Reset noise connections to force new protected connections. Any
+			// noise connections established before SetAndroidProtectFunc was set
+			// have unprotected sockets that route through the VPN tunnel,
+			// causing routing loops or connectivity failures.
+			b.backend.ResetNoiseConnections()
+			log.Printf("onVPNRequested: reset noise connections")
+			// __END_CYLONIX_ADD__
 
 			vpnService.service = s
 

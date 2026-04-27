@@ -74,6 +74,9 @@ type AppContext interface {
 	HardwareAttestationKeyPublic(id string) (pub []byte, err error)
 	HardwareAttestationKeySign(id string, data []byte) (sig []byte, err error)
 	HardwareAttestationKeyLoad(id string) error
+
+	// FatalError is called when a fatal error occurs in the backend.
+	FatalError(err string) // __CYLONIX_ADD__
 }
 
 // IPNService corresponds to our IPNService in Java.
@@ -233,7 +236,7 @@ func SendLog(logstr []byte) {
 		// Successfully sent log
 	default:
 		// Channel is full, log not sent
-		log.Printf("Log %v not sent", logstr) // missing argument in original code
+		log.Printf("Log %v not sent", string(logstr)) // __CYLONIX_MOD__ stringify byte slice
 	}
 }
 

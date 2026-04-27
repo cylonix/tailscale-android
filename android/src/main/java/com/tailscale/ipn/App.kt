@@ -449,6 +449,19 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
   override fun hardwareAttestationKeyLoad(id: String) {
     return getKeyStore().load(id)
   }
+
+  // __BEGIN_CYLONIX_ADD__
+  // Implements libtailscale.AppContext.fatalError. The Go bridge calls this
+  // when a backend startup error is unrecoverable; route to logcat and to a
+  // runtime-pluggable hook the cylonix flutter app can install.
+  override fun fatalError(message: String) {
+    Log.e(TAG, "libtailscale fatal: $message")
+    onFatalError?.invoke(message)
+  }
+
+  /** Optional hook for surfacing fatalError to the cylonix flutter app. */
+  var onFatalError: ((String) -> Unit)? = null
+  // __END_CYLONIX_ADD__
 }
 /**
  * UninitializedApp contains all of the methods of App that can be used without having to initialize

@@ -27,7 +27,11 @@ repositories {
 }
 
 apply plugin: 'kotlin-android'
-apply plugin: 'com.android.application'
+// __CYLONIX_MOD__ swap from 'com.android.application' so gradle assembleAar
+// produces an AAR for the cylonix flutter app to consume; cylonix doesn't
+// ship the upstream APK targets (debug/release/release_tv), so we lose those
+// flavors in exchange.
+apply plugin: 'com.android.library'
 apply plugin: 'org.jetbrains.kotlin.plugin.serialization'
 apply plugin: 'com.ncorti.ktfmt.gradle'
 
@@ -92,12 +96,24 @@ android {
 
             minifyEnabled true
 
-            shrinkResources true
+            // __CYLONIX_MOD__ shrinkResources is application-only; library
+            // builds reject it.
+            //shrinkResources true
 
             proguardFiles getDefaultProguardFile(
                     'proguard-android-optimize.txt'),
                     'proguard-rules.pro'
         }
+        // __BEGIN_CYLONIX_ADD__
+        // Cylonix bundles tailscale-android as a library AAR consumed by
+        // the cylonix flutter app. The `aar` build type produces the AAR
+        // we ship; assembleAar is invoked by the Makefile IPN_APP_AAR
+        // target.
+        aar {
+            manifestPlaceholders.leanbackRequired = false
+            buildConfigField 'String', 'VERSION_NAME', "\"" + "1.96.4" +"\""
+        }
+        // __END_CYLONIX_ADD__
         release_tv {
             initWith release
             manifestPlaceholders.leanbackRequired = true

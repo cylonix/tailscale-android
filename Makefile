@@ -389,3 +389,27 @@ help: ## Show this help
 	@echo ""
 
 .DEFAULT_GOAL := help
+
+# __BEGIN_CYLONIX_ADD__
+# Cylonix Flutter app consumes an additional AAR built from the Kotlin
+# tailscale-android sources via gradle (gives the Flutter app the JNI
+# entry points + supporting Kotlin types). This target produces it at
+# android/libs/ipn_app.aar.
+#
+# NOTE: this target requires switching the upstream android/build.gradle
+# from 'com.android.application' to 'com.android.library' (which is what
+# the old cylonix fork did). Switching it unconditionally would break the
+# upstream APK/AAB targets (debug/release/release_tv), so on this branch
+# the change isn't applied — building ipn_app.aar will fail with
+# "Task 'assembleAar' not found". The cylonix Flutter app ships with a
+# pre-built ipn_app.aar (cylonix/android/app/libs/ipn_app.aar); refresh
+# it from a separate library-flavored gradle build when the Kotlin code
+# under android/src/main/java/com/tailscale/ipn/ui/ actually changes.
+IPN_APP_AAR := android/libs/ipn_app.aar
+
+.PHONY: $(IPN_APP_AAR)
+$(IPN_APP_AAR): gradle-dependencies ## Build the cylonix ipn_app.aar via gradle assembleAar (requires android/build.gradle library plugin)
+	@echo "Building ipn app AAR"
+	(cd android && ./gradlew assembleAar)
+	cp android/build/outputs/aar/android-aar.aar $@
+# __END_CYLONIX_ADD__

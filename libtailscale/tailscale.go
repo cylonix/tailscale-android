@@ -66,17 +66,25 @@ func newApp(dataDir, directFileRoot string, hardwareAttestationPref bool, appCtx
 
 		ctx := context.Background()
 		if err := a.runBackend(ctx, hwAttestEnabled); err != nil {
-			fatalErr(err)
+			a.fatalErr(err) // __CYLONIX_MOD__ route through appCtx.FatalError
 		}
 	}()
 
 	return a
 }
 
-func fatalErr(err error) {
-	// TODO: expose in UI.
+// __BEGIN_CYLONIX_MOD__
+// fatalErr forwards backend startup failures to the AppContext.FatalError
+// hook so the cylonix flutter app can surface them; was a package-level
+// function returning only via log.Printf upstream.
+func (a *App) fatalErr(err error) {
 	log.Printf("fatal error: %v", err)
+	if a != nil && a.appCtx != nil {
+		a.appCtx.FatalError(err.Error())
+	}
 }
+
+// __END_CYLONIX_MOD__
 
 // osVersion returns android.os.Build.VERSION.RELEASE. " [nogoogle]" is appended
 // if Google Play services are not compiled in.

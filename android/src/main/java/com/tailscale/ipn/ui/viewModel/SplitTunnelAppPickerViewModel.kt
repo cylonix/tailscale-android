@@ -23,7 +23,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class SplitTunnelAppPickerViewModel : ViewModel() {
-  val installedAppsManager = InstalledAppsManager(packageManager = App.get().packageManager)
+  // __CYLONIX_MOD__ pass the app's own package name (was BuildConfig.APPLICATION_ID
+  // before the application -> library gradle swap dropped it).
+  val installedAppsManager = InstalledAppsManager(
+      packageManager = App.get().packageManager,
+      selfPackageName = App.get().packageName,
+  )
 
   val installedApps: StateFlow<List<InstalledApp>> =
       flow {

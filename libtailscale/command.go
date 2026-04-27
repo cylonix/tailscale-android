@@ -1,0 +1,333 @@
+// Copyright (c) Tailscale Inc & AUTHORS
+// SPDX-License-Identifier: BSD-3-Clause
+
+// __BEGIN_CYLONIX_ADD__
+// File added by cylonix. SendCommand is the JNI entry point used by the
+// cylonix Flutter app to drive the Tailscale LocalAPI without going through
+// the upstream Kotlin UI.
+// __END_CYLONIX_ADD__
+
+package libtailscale
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	"tailscale.com/client/tailscale/apitype"
+	"tailscale.com/envknob"
+	"tailscale.com/ipn"
+)
+
+const (
+	alwaysUseRelayEnabledStateKey = ipn.StateKey("_always_use_relay_enabled")
+
+	sendFilesToPeerCmd = "send_files_to_peer"
+)
+
+func isClientDependantCmd(cmd string) bool {
+	switch cmd {
+	case "log", "get_env_knob":
+		return false
+	default:
+		return true
+	}
+}
+
+var (
+	app   *App
+	store *stateStore
+)
+
+func setupAppCommandHandler(a *App) {
+	app = a
+	store = a.store
+}
+
+func SendCommand(cmd, args string) string {
+	//log.Printf("Received cmd: %v args: %v", cmd, args)
+	if app == nil && isClientDependantCmd(cmd) {
+		return "App not initialized"
+	}
+	var client *Client
+	if app != nil {
+		client = NewClient(app)
+	}
+	switch cmd {
+	case "start":
+		err := client.Start(args)
+		if err != nil {
+			return fmt.Sprintf("Error starting: %v", err)
+		}
+		return "Success"
+	case "start_login_interactive":
+		log.Printf("calling start login interactive local client")
+		err := client.StartLoginInteractive()
+		if err != nil {
+			log.Printf("start login interface failed: %v", err)
+			return fmt.Sprintf("Error starting login interactive: %v", err)
+		}
+		log.Printf("start login interactive success")
+		return "Success"
+	case "edit_prefs":
+		prefs := &ipn.Prefs{}
+		err := client.EditPrefs(args, prefs)
+		if err != nil {
+			return fmt.Sprintf("Error editing prefs: %v", err)
+		}
+		v, err := json.Marshal(prefs)
+		if err != nil {
+			return fmt.Sprintf("Error encoding prefs: %v", err)
+		}
+		return string(v)
+	case "profiles":
+		result := []ipn.LoginProfile{}
+		err := client.Profiles(&result)
+		if err != nil {
+			return fmt.Sprintf("Error getting profiles: %v", err)
+		}
+		v, err := json.Marshal(result)
+		if err != nil {
+			return fmt.Sprintf("Error encoding profiles: %v", err)
+		}
+		return string(v)
+	case "current_profile":
+		result := ipn.LoginProfile{}
+		err := client.CurrentProfile(&result)
+		if err != nil {
+			return fmt.Sprintf("Error getting profiles: %v", err)
+		}
+		v, err := json.Marshal(result)
+		if err != nil {
+			return fmt.Sprintf("Error encoding profiles: %v", err)
+		}
+		return string(v)
+
+	case "add_profile":
+		err := client.AddProfile()
+		if err != nil {
+			return fmt.Sprintf("Error add profile: %v", err)
+		}
+		return "Success"
+	case "switch_profile":
+		id := ipn.ProfileID(args)
+		err := client.SwitchProfile(id)
+		if err != nil {
+			return fmt.Sprintf("Error switch profile: %v", err)
+		}
+		return "Success"
+	case "ping":
+		list := strings.Split(args, " ")
+		ip := list[0]
+		pingType := "disco"
+		if len(list) == 2 {
+			pingType = list[1]
+		}
+		result, err := client.Ping(ip, pingType)
+		if err != nil {
+			return fmt.Sprintf("Error pinging %v (%v): %v", ip, pingType, err)
+		}
+		return result
+	case "dns_query":
+		list := strings.Split(args, " ")
+		name := list[0]
+		queryType := ""
+		if len(list) == 2 {
+			queryType = list[1]
+		}
+		result, err := client.DNSQuery(name, queryType)
+		if err != nil {
+			return fmt.Sprintf("Error querying %v (type=%v): %v", name, queryType, err)
+		}
+		return result
+	case "status":
+		result, err := client.Status()
+		if err != nil {
+			return fmt.Sprintf("Error getting status: %v", err)
+		}
+		return result
+	case "logout":
+		err := client.Logout()
+		if err != nil {
+			return fmt.Sprintf("Error logging out: %v", err)
+		}
+		return "Success"
+	case "get_waiting_files":
+		result := []apitype.WaitingFile{}
+		err := client.WaitingFiles(&result)
+		if err != nil {
+			return fmt.Sprintf("Error getting waiting files: %v", err)
+		}
+		v, err := json.Marshal(result)
+		if err != nil {
+			return fmt.Sprintf("Error encoding waiting files: %v", err)
+		}
+		return string(v)
+	case "get_file_path":
+		// __BEGIN_CYLONIX_MOD__
+		// In v1.96 LocalBackend.GetFilePath was removed; the helper moved
+		// into feature/taildrop and is unexported on the manager. The
+		// directFileRoot is set during runBackend, so fall back to joining
+		// it with the requested basename. Callers expecting a real on-disk
+		// path (peer-message UI on non-SAF platforms) get the same answer.
+		if app == nil {
+			return "Error: app not initialized"
+		}
+		if app.directFileRoot == "" {
+			return "Error: directFileRoot not set"
+		}
+		if args == "" {
+			return "Error: empty filename"
+		}
+		return filepath.Join(app.directFileRoot, args)
+		// __END_CYLONIX_MOD__
+	case "delete_file":
+		err := client.DeleteFile(args)
+		if err != nil {
+			return fmt.Sprintf("Error deleting file '%v': %v", args, err)
+		}
+		return "Success"
+	case "set_env_knobs":
+		if args == "" {
+			return "Error: no arguments provided"
+		}
+		kvs, err := parseKeyValue(args)
+		if err != nil {
+			return fmt.Sprintf("Error parsing arguments: %v", err)
+		}
+		log.Printf("Set env knob: %v", kvs)
+		for k, v := range kvs {
+			envknob.Setenv(k, v)
+		}
+		// Some env knobs need follow up actions
+		if v, ok := kvs["TS_DEBUG_ALWAYS_USE_DERP"]; ok {
+			if err := onEnvknobSetAlwaysUseRelay(v, client); err != nil {
+				return fmt.Sprintf("Error setting TS_DEBUG_ALWAYS_USE_DERP: %v", err)
+			}
+			log.Printf("TS_DEBUG_ALWAYS_USE_DERP set to %v", v)
+		}
+		return "Success"
+	case "set_l2relay_capture":
+		if args == "" {
+			return "Error: no arguments provided"
+		}
+		on, err := strconv.ParseBool(args)
+		if err != nil {
+			return fmt.Sprintf("Error: invalid bool value %q: %v", args, err)
+		}
+		if err := client.SetL2RelayCaptureEnabled(on); err != nil {
+			return fmt.Sprintf("Error setting l2relay capture: %v", err)
+		}
+		return "Success"
+	case "get_l2relay_capture":
+		on, err := client.L2RelayCaptureEnabled()
+		if err != nil {
+			return fmt.Sprintf("Error getting l2relay capture: %v", err)
+		}
+		if on {
+			return "1"
+		}
+		return "0"
+	case "add_del_cap":
+		argsSlice := strings.Split(args, " ")
+		if len(argsSlice) != 2 {
+			return "Error: insufficient arguments for add_del_cap"
+		}
+		cap := argsSlice[0]
+		op := argsSlice[1]
+		if err := client.AddDelNodeCapability(cap, op); err != nil {
+			return "Error: " + err.Error()
+		}
+		return "Success"
+	case "get_env_knob":
+		if args == "" {
+			return "Error: no arguments provided"
+		}
+		log.Printf("Get env knob: %v", args)
+		return os.Getenv(args)
+	case "log":
+		log.Println(args)
+		return "Success"
+	case sendFilesToPeerCmd:
+		result := ""
+		sendArgs := &SendFilesToPeerArgs{}
+		if err := json.Unmarshal([]byte(args), sendArgs); err != nil {
+			return fmt.Sprintf("Error unmarshaling args: %v", err)
+		}
+		if err := client.PutTaildropFiles(sendArgs.PeerID, sendArgs.Files, &result); err != nil {
+			return fmt.Sprintf("Error sending files to peer: %v", err)
+		}
+		return "Success: " + result
+	default:
+		return fmt.Sprintf("Error: unknown command: %v", cmd)
+	}
+}
+
+func onEnvknobSetAlwaysUseRelay(setting string, client *Client) error {
+	on, err := strconv.ParseBool(setting)
+	if err != nil {
+		return fmt.Errorf("failed to parse setting '%q': %w", setting, err)
+	}
+	if err := store.WriteBool(string(alwaysUseRelayEnabledStateKey), on); err != nil {
+		return fmt.Errorf("failed to store state: %w", err)
+	}
+	if client != nil {
+		log.Printf("Rebinding for alwaysUserRelay(%v)", on)
+		if err := client.DebugRebind(); err != nil {
+			return fmt.Errorf("failed to rebind for alwaysUserRelay(%v): %w", on, err)
+		}
+		log.Printf("Rebinding DONE. Re-stunning for alwaysUserRelay(%v)", on)
+		if err := client.DebugReStun(); err != nil {
+			return fmt.Errorf("failed to re-stun for alwaysUserRelay(%v): %w", on, err)
+		}
+		log.Printf("Re-stunning DONE for alwaysUserRelay(%v)", on)
+	}
+	return nil
+}
+
+func getCmdTimeout(cmd string) time.Duration {
+	if cmd == sendFilesToPeerCmd {
+		return 24 * time.Hour
+	}
+	// Default timeout for commands
+	return 5 * time.Second
+}
+
+type SendFilesToPeerArgs struct {
+	PeerID string         `json:"peer_id"`
+	Files  []OutgoingFile `json:"files"`
+}
+
+// Helper function to parse key-value string into map
+func parseKeyValue(s string) (map[string]string, error) {
+	result := make(map[string]string)
+
+	// Handle empty string
+	if s == "" {
+		return result, nil
+	}
+
+	// Try JSON first
+	if err := json.Unmarshal([]byte(s), &result); err == nil {
+		return result, nil
+	}
+
+	// Fallback to key=value format
+	pairs := strings.Split(s, ",")
+	for _, pair := range pairs {
+		parts := strings.SplitN(pair, "=", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid key-value pair: %s", pair)
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		result[key] = value
+	}
+
+	return result, nil
+}
