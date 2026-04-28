@@ -34,6 +34,7 @@ import (
 	"tailscale.com/types/logger"
 	"tailscale.com/types/logid"
 	"tailscale.com/types/netmap"
+	"tailscale.com/util/dnsname" // __CYLONIX_ADD__ for SanitizeHostname
 	"tailscale.com/util/eventbus"
 	"tailscale.com/wgengine"
 	"tailscale.com/wgengine/netstack"
@@ -120,9 +121,19 @@ func (a *App) runBackend(ctx context.Context, hardwareAttestation bool) error {
 		deviceModel = "ChromeOS: " + deviceModel
 	}
 	hostinfo.SetDeviceModel(deviceModel)
+	// __BEGIN_CYLONIX_MOD__
+	// Sanitize the hostname to be DNS-valid: deviceName() returns
+	// "Manufacturer Model" (e.g. "Redmi Note 13 5G") which has spaces,
+	// and headscale's EnsureHostname (hscontrol/util/util.go:295)
+	// substitutes the literal "invalid-<random8>" when ValidateHostname
+	// rejects characters outside [a-z0-9-.]. dnsname.SanitizeHostname
+	// lowercases and replaces invalid chars (so "Redmi Note 13 5G" →
+	// "redmi-note-13-5g"). Keep the unsanitized deviceModel above for
+	// the human-readable Hostinfo.DeviceModel field.
 	hostinfo.SetHostnameFn(func() (string, error) {
-		return a.deviceName(), nil
+		return dnsname.SanitizeHostname(a.deviceName()), nil
 	})
+	// __END_CYLONIX_MOD__
 
 	type configPair struct {
 		rcfg *router.Config
@@ -147,12 +158,8 @@ func (a *App) runBackend(ctx context.Context, hardwareAttestation bool) error {
 	}
 	defer b.CloseTUNs()
 
-	// __BEGIN_CYLONIX_ADD__
-	// Wire the cylonix SendCommand JNI entry point to this App so the cylonix
-	// flutter app can drive status / login / prefs through the libtailscale
-	// LocalAPI client wrapper in client.go.
-	setupAppCommandHandler(a)
-	// __END_CYLONIX_ADD__
+	// __CYLONIX_ADD__ setupAppCommandHandler(a) is now called synchronously
+	// from newApp before this goroutine starts; see tailscale.go.
 
 	hc := localapi.HandlerConfig{
 		Actor:    ipnauth.Self,

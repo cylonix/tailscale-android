@@ -45,6 +45,19 @@ func newApp(dataDir, directFileRoot string, hardwareAttestationPref bool, appCtx
 	netmon.RegisterInterfaceGetter(a.getInterfaces)
 	rsop.RegisterStore("DeviceHandler", setting.DeviceScope, a.policyStore)
 
+	// __BEGIN_CYLONIX_ADD__
+	// Wire the SendCommand JNI dispatcher synchronously, before the
+	// runBackend goroutine spawns. The cylonix flutter app starts issuing
+	// commands (status, watch_notifications, ...) the moment the Activity
+	// is up, which can race with backend startup. If the package-global
+	// `app` is nil at SendCommand time, command.go returns the literal
+	// string "App not initialized" — which the flutter side then tries to
+	// JSON-parse, triggering FormatException at character 1. The actual
+	// LocalAPI client behind these commands waits on app.ready.Wait() so
+	// it's safe to install the global early.
+	setupAppCommandHandler(a)
+	// __END_CYLONIX_ADD__
+
 	hwAttestEnabled := appCtx.HardwareAttestationKeySupported() && hardwareAttestationPref
 	if hwAttestEnabled {
 		key.RegisterHardwareAttestationKeyFns(

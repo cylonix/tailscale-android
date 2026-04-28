@@ -4,6 +4,7 @@
 package com.tailscale.ipn.ui.notifier
 
 import com.tailscale.ipn.App
+import com.tailscale.ipn.onNotificationReceived // __CYLONIX_ADD__
 import com.tailscale.ipn.ui.model.Empty
 import com.tailscale.ipn.ui.model.Health
 import com.tailscale.ipn.ui.model.Ipn
@@ -96,6 +97,16 @@ object Notifier {
                 health.set(it)
               }
             }
+            // __BEGIN_CYLONIX_ADD__
+            // Forward every Notify to the cylonix App-level callback so the
+            // cylonix flutter app receives state/netmap/prefs/url/etc. The
+            // callback is set by App.kt's setNotificationCallback hook
+            // (cylonix android MainActivity registers it on startup).
+            // App.get() returns UninitializedApp in upstream's lifecycle
+            // post-refactor; cast to App since the runtime instance is the
+            // initialized subclass once the activity has come up.
+            (App.get() as? App)?.onNotificationReceived(notify)
+            // __END_CYLONIX_ADD__
           }
     }
   }

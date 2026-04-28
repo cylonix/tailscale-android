@@ -128,3 +128,33 @@ fun App.restartNotifications() {
     Notifier.start(applicationScope)
     TSLog.d(TAG, "Notifications restarted")
 }
+
+// __BEGIN_CYLONIX_ADD__
+// Per-package wrappers around the upstream bulk updateUserSelectedPackages
+// API. The cylonix flutter app drives split-tunnel one package at a time
+// (via the excludeAppFromVPN method channel call); upstream replaced its
+// per-package add/remove methods with a single bulk update around v1.95.
+// These wrappers preserve the per-package surface by reading the existing
+// list, mutating it, and writing it back.
+fun App.addUserDisallowedPackageName(packageName: String) {
+    if (packageName.isEmpty()) {
+        TSLog.e(TAG, "addUserDisallowedPackageName called with empty packageName")
+        return
+    }
+    val current = selectedPackageNames().toMutableSet()
+    if (current.add(packageName)) {
+        updateUserSelectedPackages(current.toList())
+    }
+}
+
+fun App.removeUserDisallowedPackageName(packageName: String) {
+    if (packageName.isEmpty()) {
+        TSLog.e(TAG, "removeUserDisallowedPackageName called with empty packageName")
+        return
+    }
+    val current = selectedPackageNames().toMutableSet()
+    if (current.remove(packageName)) {
+        updateUserSelectedPackages(current.toList())
+    }
+}
+// __END_CYLONIX_ADD__

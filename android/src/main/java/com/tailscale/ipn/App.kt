@@ -59,7 +59,9 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import libtailscale.Libtailscale
 
-class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
+// __CYLONIX_MOD__ open so cylonix/io.cylonix.sase.App can subclass and rely on
+// upstream's lifecycle hooks; upstream defaults Kotlin classes to final.
+open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
   val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
   companion object {
