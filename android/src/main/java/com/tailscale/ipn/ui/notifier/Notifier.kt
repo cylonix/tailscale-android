@@ -5,6 +5,7 @@ package com.tailscale.ipn.ui.notifier
 
 import com.tailscale.ipn.App
 import com.tailscale.ipn.onNotificationReceived // __CYLONIX_ADD__
+import com.tailscale.ipn.onIpnStateChanged // __CYLONIX_ADD__
 import com.tailscale.ipn.ui.model.Empty
 import com.tailscale.ipn.ui.model.Health
 import com.tailscale.ipn.ui.model.Ipn
@@ -106,6 +107,16 @@ object Notifier {
             // post-refactor; cast to App since the runtime instance is the
             // initialized subclass once the activity has come up.
             (App.get() as? App)?.onNotificationReceived(notify)
+            // Also fire the Kotlin-side state-change callback (registered
+            // via setIpnStateChangeCallback in cylonix MainActivity). Without
+            // this, MainActivity.onIpnStateChanged never runs, so the
+            // App.get().startVPN() path that creates the actual VpnService
+            // tun on Ipn.State.Running is never invoked — flutter shows
+            // "connected" because the engine is Running, but no tun exists,
+            // so all real packets through utun fail.
+            notify.State?.let {
+              (App.get() as? App)?.onIpnStateChanged(Ipn.State.fromInt(it))
+            }
             // __END_CYLONIX_ADD__
           }
     }
