@@ -38,7 +38,19 @@ object ShareFileHelper : libtailscale.ShareFileHelper {
     this.app = app
     savedUri = uri
     scope = appScope
-    Libtailscale.setShareFileHelper(this)
+    // __BEGIN_CYLONIX_MOD__
+    // Only register this SAF helper with libtailscale when a real content://
+    // tree URI is in play. Cylonix runs without the upstream directory picker
+    // UI, so when no SAF tree is selected, App.startLibtailscale falls through
+    // to startLibtailscale(filesDir.absolutePath, ...) — a plain filesystem
+    // path. Registering a SAF helper for that path makes every taildrop
+    // OpenFileWriter call block forever on waitUntilTaildropDirReady() and
+    // received files never land on disk. Skipping setShareFileHelper here
+    // lets libtailscale fall back to fsFileOps against directFileRoot.
+    if (uri.startsWith("content://")) {
+      Libtailscale.setShareFileHelper(this)
+    }
+    // __END_CYLONIX_MOD__
     TSLog.d("ShareFileHelper", "init ShareFileHelper with savedUri: $savedUri")
   }
 

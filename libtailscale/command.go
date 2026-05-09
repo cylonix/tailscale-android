@@ -22,12 +22,16 @@ import (
 	"tailscale.com/client/tailscale/apitype"
 	"tailscale.com/envknob"
 	"tailscale.com/ipn"
+	"tailscale.com/ipn/ipnlocal"
 )
 
 const (
 	alwaysUseRelayEnabledStateKey = ipn.StateKey("_always_use_relay_enabled")
 
-	sendFilesToPeerCmd = "send_files_to_peer"
+	sendFilesToPeerCmd       = "send_files_to_peer"
+	sendPeerMessageCmd       = "send_peer_message"
+	setActivePeersCmd        = "set_active_peers"
+	clearActivePeersCmd      = "clear_active_peers"
 )
 
 func isClientDependantCmd(cmd string) bool {
@@ -263,6 +267,36 @@ func SendCommand(cmd, args string) string {
 			return fmt.Sprintf("Error sending files to peer: %v", err)
 		}
 		return "Success: " + result
+	case sendPeerMessageCmd:
+		var result ipnlocal.PeerMessageSendResult
+		if err := client.SendPeerMessage([]byte(args), &result); err != nil {
+			return fmt.Sprintf("Error sending peerMessage: %v", err)
+		}
+		encoded, err := json.Marshal(result)
+		if err != nil {
+			return fmt.Sprintf("Error marshaling peerMessage result: %v", err)
+		}
+		return string(encoded)
+	case setActivePeersCmd:
+		// args is JSON: {"peer_ids": ["...", "..."]}.
+		// Empty list = same effect as clear; client must heartbeat to keep alive.
+		var msg struct {
+			PeerIDs []string `json:"peer_ids"`
+		}
+		if args != "" {
+			if err := json.Unmarshal([]byte(args), &msg); err != nil {
+				return fmt.Sprintf("Error parsing %v args: %v", setActivePeersCmd, err)
+			}
+		}
+		if err := client.SetActivePeers(msg.PeerIDs); err != nil {
+			return fmt.Sprintf("Error setting active peers: %v", err)
+		}
+		return "Success"
+	case clearActivePeersCmd:
+		if err := client.ClearActivePeers(); err != nil {
+			return fmt.Sprintf("Error clearing active peers: %v", err)
+		}
+		return "Success"
 	default:
 		return fmt.Sprintf("Error: unknown command: %v", cmd)
 	}
@@ -291,8 +325,11 @@ func onEnvknobSetAlwaysUseRelay(setting string, client *Client) error {
 }
 
 func getCmdTimeout(cmd string) time.Duration {
-	if cmd == sendFilesToPeerCmd {
+	switch cmd {
+	case sendFilesToPeerCmd:
 		return 24 * time.Hour
+	case sendPeerMessageCmd:
+		return 20 * time.Second
 	}
 	// Default timeout for commands
 	return 5 * time.Second

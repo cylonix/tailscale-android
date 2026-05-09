@@ -21,7 +21,12 @@ require (
 // retrieve_fs.go / retrieve_android.go split. After the next tag, switch
 // this back to:
 //   replace tailscale.com => github.com/cylonix/tailscale v1.96.4-cylonix.2
-replace tailscale.com => github.com/cylonix/tailscale v1.96.4-cylonix.2
+//
+// __CYLONIX_MOD__ Pointing at the local checkout so changes in
+// ../tailscale (taildrop fileops_fs/!android fix, peer messaging, etc.)
+// are picked up by the gomobile bind. Tag and switch back to a tagged
+// module once these are published.
+replace tailscale.com => ../tailscale
 
 // __END_CYLONIX_ADD__
 

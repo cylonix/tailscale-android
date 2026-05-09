@@ -359,7 +359,26 @@ func (a *App) newBackend(dataDir string, appCtx AppContext, store *stateStore,
 	}
 	lb, err := ipnlocal.NewLocalBackend(logf, logID.Public(), sys, 0)
 	if ext, ok := ipnlocal.GetExt[*taildrop.Extension](lb); ok {
-		ext.SetFileOps(newAndroidFileOps(a.shareFileHelper))
+		// __BEGIN_CYLONIX_MOD__
+		// Only register the Android SAF-backed FileOps when a Kotlin
+		// ShareFileHelper has actually been bound. When cylonix runs without
+		// a SAF tree (because the upstream directory picker UI isn't shipped),
+		// the Kotlin side intentionally skips Libtailscale.setShareFileHelper,
+		// leaving a.shareFileHelper nil. Letting the taildrop extension fall
+		// back to its built-in fsFileOps against directFileRoot is the only
+		// way received files actually land on disk in that case.
+		if a.shareFileHelper != nil {
+			ext.SetFileOps(newAndroidFileOps(a.shareFileHelper))
+		} else if a.directFileRoot != "" {
+			// Plumb the libtailscale-level directFileRoot into the taildrop
+			// extension so its fsFileOps uses the same root that the cylonix
+			// `get_file_path` JNI command joins against. Without this, the
+			// extension falls back to <TailscaleVarRoot>/files/<user>-uid-N
+			// while get_file_path returns <directFileRoot>/<basename>, so
+			// File.exists() in dart never finds the received file.
+			ext.SetDirectFileRoot(a.directFileRoot)
+		}
+		// __END_CYLONIX_MOD__
 	}
 
 	if err != nil {

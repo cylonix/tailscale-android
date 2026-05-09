@@ -7,6 +7,7 @@ import android.net.Uri
 import java.util.UUID
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import kotlinx.serialization.json.JsonElement // __CYLONIX_ADD__
 
 class Ipn {
 
@@ -51,6 +52,13 @@ class Ipn {
       var ClientVersion: Tailcfg.ClientVersion? = null,
       var TailFSShares: List<String>? = null,
       var Health: Health.State? = null,
+      // __BEGIN_CYLONIX_ADD__
+      // Cylonix peer messaging events flow through the standard ipn notify
+      // bus when the upstream local backend produces them. Carry the raw
+      // JSON tree through unchanged so MainActivity's re-encode-and-forward
+      // path reaches the Flutter client without losing the field.
+      var PeerMessageEvent: JsonElement? = null,
+      // __END_CYLONIX_ADD__
   )
 
   @Serializable
