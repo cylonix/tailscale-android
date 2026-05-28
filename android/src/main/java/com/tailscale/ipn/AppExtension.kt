@@ -1,10 +1,19 @@
 package com.tailscale.ipn
 
+import android.Manifest
+import android.app.PendingIntent
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.text.format.Formatter
 import android.util.Log
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicInteger
 
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -108,7 +117,76 @@ fun App.setNotificationCallback(callback: (Notify) -> Unit) {
 }
 
 fun App.onNotificationReceived(notification: Notify) {
+    notification.CylonixDirectFileReceived?.let { file ->
+        try {
+            notifyDirectModeFileReceived(file)
+        } catch (e: Exception) {
+            TSLog.e(TAG, "notifyDirectModeFileReceived failed: ${e.message}")
+        }
+    }
     onNotification?.invoke(notification)
+}
+
+// Uses the Cylonix HIGH-importance variant channel created in App.onCreate.
+// The upstream "tailscale-files" channel is IMPORTANCE_DEFAULT which never
+// triggers a heads-up banner (MIUI in particular hides it entirely), so
+// Cylonix posts to its own HIGH channel for direct-mode arrivals. Each
+// arrival gets its own notification ID so multiple files stack in the
+// shade instead of replacing one another.
+private val taildropNotificationId = AtomicInteger(2000)
+
+fun App.notifyDirectModeFileReceived(file: Ipn.CylonixDirectFile) {
+    if (file.path.isEmpty() && file.name.isEmpty()) {
+        return
+    }
+    if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+        != PackageManager.PERMISSION_GRANTED) {
+        return
+    }
+    // Use the package's launcher intent so this works for both upstream
+    // tailscale-android and any host (e.g., cylonix) that ships a different
+    // MainActivity class. Cylonix removes com.tailscale.ipn.MainActivity
+    // from its manifest, so referencing that class directly would throw
+    // ActivityNotFoundException at tap time.
+    val openAppIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+    }
+    val pendingIntent = openAppIntent?.let {
+        PendingIntent.getActivity(
+            this, file.path.hashCode(), it,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
+    val displayName = if (file.name.isNotEmpty()) file.name else File(file.path).name
+    val sizeText = if (file.size > 0) Formatter.formatShortFileSize(this, file.size) else ""
+    // Resolve a user-facing location. MediaStore returns a content:// URI
+    // that means nothing to humans; substitute the well-known display
+    // path (Downloads/Cylonix/<name>) instead. For plain filesystem paths
+    // (no SAF, pre-API-29 fallback) just show the parent directory.
+    val locationText = when {
+        file.path.startsWith("content://") ->
+            com.tailscale.ipn.util.MediaStoreFileHelper.humanLocation(displayName)
+        else -> File(file.path).parent ?: file.path
+    }
+    val body = buildString {
+        append(locationText)
+        if (sizeText.isNotEmpty()) {
+            append("  •  ")
+            append(sizeText)
+        }
+    }
+    val builder = NotificationCompat.Builder(this, App.CYLONIX_TAILDROP_CHANNEL_ID)
+        .setSmallIcon(R.drawable.ic_notification)
+        .setContentTitle("File received by Cylonix")
+        .setContentText(body)
+        .setStyle(NotificationCompat.BigTextStyle().bigText("$displayName\n$body"))
+        .setSubText(displayName)
+        .setAutoCancel(true)
+        .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+        .setDefaults(NotificationCompat.DEFAULT_ALL)
+        .setPriority(NotificationCompat.PRIORITY_HIGH)
+    pendingIntent?.let { builder.setContentIntent(it) }
+    NotificationManagerCompat.from(this)
+        .notify(taildropNotificationId.getAndIncrement(), builder.build())
 }
 
 fun App.onIpnStateChanged(state: Ipn.State) {

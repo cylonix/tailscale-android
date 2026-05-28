@@ -66,6 +66,7 @@ open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwne
 
   companion object {
     private const val FILE_CHANNEL_ID = "tailscale-files"
+    const val CYLONIX_TAILDROP_CHANNEL_ID = "cylonix-taildrop-files" // __CYLONIX_ADD__
     // Key to store the SAF URI in EncryptedSharedPreferences.
     private val PREF_KEY_SAF_URI = "saf_directory_uri"
     private const val TAG = "App"
@@ -120,11 +121,20 @@ open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwne
         getString(R.string.vpn_status),
         getString(R.string.optional_notifications_which_display_the_status_of_the_vpn_tunnel),
         NotificationManagerCompat.IMPORTANCE_MIN)
+    // __BEGIN_CYLONIX_MOD__
+    // Cylonix posts taildrop arrivals to its own IMPORTANCE_HIGH channel
+    // (created below); the upstream IMPORTANCE_DEFAULT tailscale-files
+    // channel has nothing posting to it in cylonix and would otherwise
+    // appear as a duplicate "Taildrop file transfers" row in Android
+    // (and MIUI) notification settings. Delete it so existing installs
+    // that previously created it lose the orphan entry.
+    NotificationManagerCompat.from(this).deleteNotificationChannel(FILE_CHANNEL_ID)
     createNotificationChannel(
-        FILE_CHANNEL_ID,
-        getString(R.string.taildrop_file_transfers),
-        getString(R.string.notifications_delivered_when_a_file_is_received_using_taildrop),
-        NotificationManagerCompat.IMPORTANCE_DEFAULT)
+        CYLONIX_TAILDROP_CHANNEL_ID,
+        "Cylonix File Transfer",
+        "Notifications when a file is received via Cylonix File Transfer.",
+        NotificationManagerCompat.IMPORTANCE_HIGH)
+    // __END_CYLONIX_MOD__
     createNotificationChannel(
         HealthNotifier.HEALTH_CHANNEL_ID,
         getString(R.string.health_channel_name),
@@ -223,6 +233,19 @@ open class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwne
   fun startLibtailscale(directFileRoot: String, hardwareAttestation: Boolean) {
     app = Libtailscale.start(this.filesDir.absolutePath, directFileRoot, hardwareAttestation, this)
     ShareFileHelper.init(this, app, directFileRoot, applicationScope)
+    // __BEGIN_CYLONIX_ADD__
+    // When the user has not picked a SAF tree (the common cylonix case),
+    // route incoming Taildrop writes through MediaStore so files land in
+    // the public Downloads/Cylonix folder. ShareFileHelper.init above only
+    // registers itself for content:// URIs, so when directFileRoot is a
+    // plain filesystem path, the libtailscale shareFileHelper slot is
+    // empty — MediaStoreFileHelper.init fills it on Android 10+. Below
+    // API 29 this is a no-op; libtailscale falls back to fsFileOps against
+    // directFileRoot (the app's private filesDir).
+    if (!directFileRoot.startsWith("content://")) {
+      com.tailscale.ipn.util.MediaStoreFileHelper.init(this)
+    }
+    // __END_CYLONIX_ADD__
     Request.setApp(app)
     Notifier.setApp(app)
     Notifier.start(applicationScope)

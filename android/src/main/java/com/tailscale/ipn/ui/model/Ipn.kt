@@ -5,6 +5,7 @@ package com.tailscale.ipn.ui.model
 
 import android.net.Uri
 import java.util.UUID
+import kotlinx.serialization.SerialName // __CYLONIX_ADD__
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.json.JsonElement // __CYLONIX_ADD__
@@ -58,8 +59,23 @@ class Ipn {
       // JSON tree through unchanged so MainActivity's re-encode-and-forward
       // path reaches the Flutter client without losing the field.
       var PeerMessageEvent: JsonElement? = null,
+      // Cylonix direct-mode Taildrop arrival. In DirectFileMode the
+      // staging-mode FilesWaiting / IncomingFiles flow is skipped, so the
+      // Go backend emits this field instead. Used to drive a "file
+      // received" system notification on Android.
+      var CylonixDirectFileReceived: CylonixDirectFile? = null,
       // __END_CYLONIX_ADD__
   )
+
+  // __BEGIN_CYLONIX_ADD__
+  @Serializable
+  data class CylonixDirectFile(
+      val name: String = "",
+      val path: String = "",
+      val size: Long = 0,
+      @SerialName("transfer_id") val transferId: String = "",
+  )
+  // __END_CYLONIX_ADD__
 
   @Serializable
   data class Prefs(
