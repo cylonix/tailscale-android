@@ -45,7 +45,9 @@ class ShareActivity : ComponentActivity() {
       AppTheme {
         Surface(color = MaterialTheme.colorScheme.inverseSurface) { // Background for the letterbox
           Surface(modifier = Modifier.universalFit()) {
-            TaildropView(requestedTransfers, (application as App).applicationScope)
+            // __CYLONIX_MOD__ pass a Done action so the share screen can be dismissed.
+            TaildropView(
+                requestedTransfers, (application as App).applicationScope, onDone = { finish() })
           }
         }
       }

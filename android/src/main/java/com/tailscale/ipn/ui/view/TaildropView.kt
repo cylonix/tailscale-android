@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth // __CYLONIX_ADD__
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -18,7 +19,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch // __CYLONIX_ADD__
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton // __CYLONIX_ADD__
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,6 +52,7 @@ import kotlinx.coroutines.flow.StateFlow
 fun TaildropView(
     requestedTransfers: StateFlow<List<Ipn.OutgoingFile>>,
     applicationScope: CoroutineScope,
+    onDone: (() -> Unit)? = null, // __CYLONIX_ADD__ dismisses the hosting share activity
     viewModel: TaildropViewModel =
         viewModel(factory = TaildropViewModelFactory(requestedTransfers, applicationScope))
 ) {
@@ -64,8 +68,22 @@ fun TaildropView(
     }
   }
 
-  Scaffold(contentWindowInsets = WindowInsets.statusBars, topBar = { Header(R.string.share) }) {
-      paddingInsets ->
+  // __BEGIN_CYLONIX_MOD__
+  // Give the share screen an explicit Done action: the hosting
+  // ShareActivity otherwise only closes via the back gesture, which is
+  // easy to miss after a transfer completes.
+  Scaffold(
+      contentWindowInsets = WindowInsets.statusBars,
+      topBar = {
+        Header(
+            R.string.share,
+            actions = {
+              onDone?.let {
+                TextButton(onClick = it) { Text(stringResource(R.string.taildrop_done)) }
+              }
+            })
+      }) { paddingInsets ->
+    // __END_CYLONIX_MOD__
     Column(modifier = Modifier.focusRequester(focusRequester).focusable().padding(paddingInsets)) {
       val showDialog = viewModel.showDialog.collectAsState().value
 
@@ -79,8 +97,16 @@ fun TaildropView(
         Ipn.State.Running -> {
           val peers by viewModel.myPeers.collectAsState()
           val context = LocalContext.current
+          // __BEGIN_CYLONIX_ADD__
+          // "Online Only" filter toggle, matching the iOS share extension:
+          // off by default, all peers listed until the user opts in.
+          val onlineOnly by viewModel.showOnlineOnly.collectAsState()
+          OnlineOnlyToggle(
+              checked = onlineOnly, onCheckedChange = { viewModel.showOnlineOnly.set(it) })
+          val shownPeers = if (onlineOnly) peers.filter { it.Online ?: false } else peers
+          // __END_CYLONIX_ADD__
           FileSharePeerList(
-              peers = peers,
+              peers = shownPeers, // __CYLONIX_MOD__ was peers
               stateViewGenerator = { peerId -> viewModel.TrailingContentForPeer(peerId = peerId) },
               onShare = { viewModel.share(context, it) })
         }
@@ -91,6 +117,23 @@ fun TaildropView(
     }
   }
 }
+
+// __BEGIN_CYLONIX_ADD__
+// "Online Only" switch row shown above the peer list; mirrors the iOS
+// share extension's checkbox of the same name.
+@Composable
+fun OnlineOnlyToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+  Row(
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+      verticalAlignment = Alignment.CenterVertically) {
+    Text(
+        stringResource(R.string.taildrop_online_only),
+        style = MaterialTheme.typography.bodyMedium)
+    Spacer(modifier = Modifier.weight(1f))
+    Switch(checked = checked, onCheckedChange = onCheckedChange)
+  }
+}
+// __END_CYLONIX_ADD__
 
 @Composable
 fun FileSharePeerList(

@@ -28,6 +28,9 @@
     <string name="on">On</string>
     <string name="try_again">Try again</string>
     <string name="cancel">Cancel</string>
+    <!-- __CYLONIX_ADD__ Taildrop share screen: Done button and online filter -->
+    <string name="taildrop_done">Done</string>
+    <string name="taildrop_online_only">Online Only</string>
 
     <!-- Strings for the about screen -->
     <string name="app_name" translatable="false">Tailscale</string>

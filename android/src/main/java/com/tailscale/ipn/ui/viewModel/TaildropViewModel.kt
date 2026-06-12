@@ -77,6 +77,12 @@ class TaildropViewModel(
   // Non null if there's an error to be rendered.
   val showDialog: StateFlow<ErrorDialogType?> = MutableStateFlow(null)
 
+  // __BEGIN_CYLONIX_ADD__
+  // Mirrors the iOS share extension's "Online Only" peer filter; off by
+  // default so all peers stay visible unless the user opts in.
+  val showOnlineOnly: StateFlow<Boolean> = MutableStateFlow(false)
+  // __END_CYLONIX_ADD__
+
   init {
     viewModelScope.launch {
       Notifier.state.collect {
