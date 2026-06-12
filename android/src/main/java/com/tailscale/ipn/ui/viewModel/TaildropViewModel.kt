@@ -81,6 +81,23 @@ class TaildropViewModel(
   // Mirrors the iOS share extension's "Online Only" peer filter; off by
   // default so all peers stay visible unless the user opts in.
   val showOnlineOnly: StateFlow<Boolean> = MutableStateFlow(false)
+
+  // Search text filtering peers by name or OS, matching the iOS share
+  // extension's "Search name or OS…" field.
+  val searchQuery: StateFlow<String> = MutableStateFlow("")
+
+  // True while a manual peer-status refresh is in flight; drives the
+  // pull-to-refresh indicator and the filter-row refresh control.
+  val isRefreshing: StateFlow<Boolean> = MutableStateFlow(false)
+
+  // Manual refresh of the share targets so peer online status can be
+  // updated without leaving the share sheet; mirrors the iOS share
+  // extension's refresh control.
+  fun refreshTargets() {
+    if (isRefreshing.value) return
+    isRefreshing.set(true)
+    loadTargets { isRefreshing.set(false) }
+  }
   // __END_CYLONIX_ADD__
 
   init {
@@ -140,7 +157,9 @@ class TaildropViewModel(
   }
 
   // Loads all of the valid fileTargets from localAPI
-  private fun loadTargets() {
+  private fun loadTargets(
+      onDone: (() -> Unit)? = null
+  ) { // __CYLONIX_MOD__ completion for manual refresh
     Client(viewModelScope).fileTargets { result ->
       result
           .onSuccess { it ->
@@ -151,6 +170,7 @@ class TaildropViewModel(
             myPeers.set(onlinePeers + offlinePeers)
           }
           .onFailure { TSLog.e(TAG, "Error loading targets: ${it.message}") }
+      onDone?.invoke() // __CYLONIX_ADD__
     }
   }
 

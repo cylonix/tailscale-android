@@ -6,6 +6,7 @@ package com.tailscale.ipn.ui.view
 import android.text.format.Formatter
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box // __CYLONIX_ADD__
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,12 +17,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState // __CYLONIX_ADD__
+import androidx.compose.foundation.verticalScroll // __CYLONIX_ADD__
+import androidx.compose.material.icons.Icons // __CYLONIX_ADD__
+import androidx.compose.material.icons.outlined.Refresh // __CYLONIX_ADD__
+import androidx.compose.material3.CircularProgressIndicator // __CYLONIX_ADD__
+import androidx.compose.material3.ExperimentalMaterial3Api // __CYLONIX_ADD__
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton // __CYLONIX_ADD__
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField // __CYLONIX_ADD__
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch // __CYLONIX_ADD__
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton // __CYLONIX_ADD__
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox // __CYLONIX_ADD__
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -34,6 +44,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow // __CYLONIX_ADD__
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
@@ -48,6 +59,7 @@ import com.tailscale.ipn.util.TSLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
 
+@OptIn(ExperimentalMaterial3Api::class) // __CYLONIX_ADD__ PullToRefreshBox
 @Composable
 fun TaildropView(
     requestedTransfers: StateFlow<List<Ipn.OutgoingFile>>,
@@ -58,6 +70,7 @@ fun TaildropView(
 ) {
   val TAG = "TaildropView"
   val focusRequester = remember { FocusRequester() }
+  val isRefreshing by viewModel.isRefreshing.collectAsState() // __CYLONIX_ADD__
 
   // Automatically request focus when the composable is displayed
   LaunchedEffect(Unit) {
@@ -83,55 +96,119 @@ fun TaildropView(
               }
             })
       }) { paddingInsets ->
-    // __END_CYLONIX_MOD__
-    Column(modifier = Modifier.focusRequester(focusRequester).focusable().padding(paddingInsets)) {
-      val showDialog = viewModel.showDialog.collectAsState().value
+        // __END_CYLONIX_MOD__
+        Column(
+            modifier = Modifier.focusRequester(focusRequester).focusable().padding(paddingInsets)) {
+              val showDialog = viewModel.showDialog.collectAsState().value
 
-      showDialog?.let { ErrorDialog(type = it, action = { viewModel.showDialog.set(null) }) }
+              showDialog?.let {
+                ErrorDialog(type = it, action = { viewModel.showDialog.set(null) })
+              }
 
-      FileShareHeader(
-          fileTransfers = requestedTransfers.collectAsState().value,
-          totalSize = viewModel.totalSize)
+              FileShareHeader(
+                  fileTransfers = requestedTransfers.collectAsState().value,
+                  totalSize = viewModel.totalSize)
 
-      when (viewModel.state.collectAsState().value) {
-        Ipn.State.Running -> {
-          val peers by viewModel.myPeers.collectAsState()
-          val context = LocalContext.current
-          // __BEGIN_CYLONIX_ADD__
-          // "Online Only" filter toggle, matching the iOS share extension:
-          // off by default, all peers listed until the user opts in.
-          val onlineOnly by viewModel.showOnlineOnly.collectAsState()
-          OnlineOnlyToggle(
-              checked = onlineOnly, onCheckedChange = { viewModel.showOnlineOnly.set(it) })
-          val shownPeers = if (onlineOnly) peers.filter { it.Online ?: false } else peers
-          // __END_CYLONIX_ADD__
-          FileSharePeerList(
-              peers = shownPeers, // __CYLONIX_MOD__ was peers
-              stateViewGenerator = { peerId -> viewModel.TrailingContentForPeer(peerId = peerId) },
-              onShare = { viewModel.share(context, it) })
-        }
-        else -> {
-          FileShareConnectView { viewModel.startVPN() }
-        }
+              when (viewModel.state.collectAsState().value) {
+                Ipn.State.Running -> {
+                  val peers by viewModel.myPeers.collectAsState()
+                  val context = LocalContext.current
+                  // __BEGIN_CYLONIX_ADD__
+                  // Search + "Online Only" filter + refresh in a single row,
+                  // matching the iOS share extension's layout and semantics: all
+                  // peers listed until the user opts in or types a query.
+                  val onlineOnly by viewModel.showOnlineOnly.collectAsState()
+                  val searchQuery by viewModel.searchQuery.collectAsState()
+                  SearchFilterRow(
+                      searchQuery = searchQuery,
+                      onSearchQueryChange = { viewModel.searchQuery.set(it) },
+                      onlineOnly = onlineOnly,
+                      onOnlineOnlyChange = { viewModel.showOnlineOnly.set(it) },
+                      isRefreshing = isRefreshing,
+                      onRefresh = { viewModel.refreshTargets() })
+                  val shownPeers =
+                      peers.filter { peer ->
+                        (!onlineOnly || (peer.Online ?: false)) &&
+                            (searchQuery.isEmpty() ||
+                                peer.displayName.contains(searchQuery, ignoreCase = true) ||
+                                (peer.Hostinfo.OS?.contains(searchQuery, ignoreCase = true)
+                                    ?: false))
+                      }
+                  // __END_CYLONIX_ADD__
+                  // __BEGIN_CYLONIX_MOD__
+                  // Peer list wrapped in a pull-to-refresh container so users can
+                  // refresh peer online status without leaving the share sheet.
+                  PullToRefreshBox(
+                      isRefreshing = isRefreshing,
+                      onRefresh = { viewModel.refreshTargets() },
+                      modifier = Modifier.fillMaxWidth().weight(1f)) {
+                        // Column keeps the section divider stacked above the list;
+                        // FileSharePeerList emits two siblings which would otherwise
+                        // overlap in this Box scope.
+                        Column {
+                          FileSharePeerList(
+                              peers = shownPeers,
+                              stateViewGenerator = { peerId ->
+                                viewModel.TrailingContentForPeer(peerId = peerId)
+                              },
+                              onShare = { viewModel.share(context, it) })
+                        }
+                      }
+                  // __END_CYLONIX_MOD__
+                }
+                else -> {
+                  FileShareConnectView { viewModel.startVPN() }
+                }
+              }
+            }
       }
-    }
-  }
 }
 
 // __BEGIN_CYLONIX_ADD__
-// "Online Only" switch row shown above the peer list; mirrors the iOS
-// share extension's checkbox of the same name.
+// Search field, "Online Only" switch and refresh control in one row above
+// the peer list; mirrors the iOS share extension's filter row.
 @Composable
-fun OnlineOnlyToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+fun SearchFilterRow(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onlineOnly: Boolean,
+    onOnlineOnlyChange: (Boolean) -> Unit,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit
+) {
   Row(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-      verticalAlignment = Alignment.CenterVertically) {
-    Text(
-        stringResource(R.string.taildrop_online_only),
-        style = MaterialTheme.typography.bodyMedium)
-    Spacer(modifier = Modifier.weight(1f))
-    Switch(checked = checked, onCheckedChange = onCheckedChange)
-  }
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChange,
+            modifier = Modifier.weight(1f),
+            placeholder = {
+              Text(
+                  stringResource(R.string.taildrop_search_hint),
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis)
+            },
+            singleLine = true)
+        Text(
+            stringResource(R.string.taildrop_online_only),
+            style = MaterialTheme.typography.bodyMedium)
+        Switch(checked = onlineOnly, onCheckedChange = onOnlineOnlyChange)
+        // Fixed-size slot so swapping the button for the spinner doesn't
+        // shift the row, matching the iOS layout.
+        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+          if (isRefreshing) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+          } else {
+            IconButton(onClick = onRefresh) {
+              Icon(
+                  Icons.Outlined.Refresh,
+                  contentDescription = stringResource(R.string.taildrop_refresh))
+            }
+          }
+        }
+      }
 }
 // __END_CYLONIX_ADD__
 
@@ -146,7 +223,15 @@ fun FileSharePeerList(
   when (peers.isEmpty()) {
     true -> {
       Column(
-          modifier = Modifier.padding(horizontal = 8.dp).fillMaxHeight(),
+          // __BEGIN_CYLONIX_MOD__
+          // verticalScroll makes the empty state a scrollable so the
+          // enclosing pull-to-refresh container responds to the pull
+          // gesture even when no peers are listed.
+          modifier =
+              Modifier.padding(horizontal = 8.dp)
+                  .fillMaxHeight()
+                  .verticalScroll(rememberScrollState()),
+          // __END_CYLONIX_MOD__
           verticalArrangement = Arrangement.Center,
           horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
