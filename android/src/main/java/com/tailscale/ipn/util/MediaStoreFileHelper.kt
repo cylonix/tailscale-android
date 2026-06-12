@@ -8,9 +8,11 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.webkit.MimeTypeMap
 import com.tailscale.ipn.ui.util.InputStreamAdapter
 import com.tailscale.ipn.ui.util.OutputStreamAdapter
 import java.io.IOException
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import libtailscale.Libtailscale
@@ -52,6 +54,99 @@ object MediaStoreFileHelper : libtailscale.ShareFileHelper {
   // file-received notification.
   fun humanLocation(displayName: String): String =
       "${Environment.DIRECTORY_DOWNLOADS}/$DISPLAY_SUBDIR/$displayName"
+
+  // RelocatedMedia describes a file moved out of Downloads/Cylonix into a
+  // media collection: its new content URI and a user-facing location label
+  // such as "Pictures/Cylonix/<name>".
+  data class RelocatedMedia(val uri: String, val humanLocation: String)
+
+  // mediaMimeType returns the image/* or video/* MIME type for the given
+  // display name, or null when the extension is not a known photo/video
+  // type. MimeTypeMap lacks some common types on older releases, so a
+  // small fallback table covers them.
+  private fun mediaMimeType(displayName: String): String? {
+    val ext = displayName.substringAfterLast('.', "").lowercase(Locale.US)
+    if (ext.isEmpty()) return null
+    val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
+        ?: when (ext) {
+          "heic" -> "image/heic"
+          "heif" -> "image/heif"
+          "webp" -> "image/webp"
+          else -> null
+        }
+    return if (mime != null && (mime.startsWith("image/") || mime.startsWith("video/"))) mime
+    else null
+  }
+
+  // relocateToMediaCollection moves a finished Downloads/Cylonix row into
+  // the proper media collection (Pictures/Cylonix for images,
+  // Movies/Cylonix for videos) so plain Taildrop photo/video drops show up
+  // in gallery apps, matching AirDrop. Returns null — leaving the file in
+  // Downloads/Cylonix — when the name is not a photo/video, the helper is
+  // not active (SAF mode, pre-API-29), or the copy fails. Callers must
+  // only pass plain drops, never peer-message attachments, whose
+  // Downloads URI is referenced by chat bubbles.
+  fun relocateToMediaCollection(displayName: String, uriString: String): RelocatedMedia? {
+    val ctx = appContext ?: return null
+    if (!isSupported()) return null
+    val mime = mediaMimeType(displayName) ?: return null
+    val isImage = mime.startsWith("image/")
+    val collection =
+        if (isImage) MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        else MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+    val mediaDir =
+        if (isImage) Environment.DIRECTORY_PICTURES else Environment.DIRECTORY_MOVIES
+    val resolver = ctx.contentResolver
+    val src = Uri.parse(uriString)
+    val dst = resolver.insert(
+        collection,
+        ContentValues().apply {
+          put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
+          put(MediaStore.MediaColumns.MIME_TYPE, mime)
+          put(MediaStore.MediaColumns.RELATIVE_PATH, "$mediaDir/$DISPLAY_SUBDIR")
+          put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }) ?: return null
+    try {
+      resolver.openInputStream(src)?.use { input ->
+        resolver.openOutputStream(dst, "w")?.use { output -> input.copyTo(output) }
+            ?: throw IOException("openOutputStream failed for $dst")
+      } ?: throw IOException("openInputStream failed for $src")
+      resolver.update(
+          dst, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+    } catch (e: Exception) {
+      TSLog.w(TAG, "relocate($displayName) to $mediaDir failed, keeping Downloads copy: ${e.message}")
+      try {
+        resolver.delete(dst, null, null)
+      } catch (cleanup: Exception) {
+        TSLog.w(TAG, "relocate cleanup failed: ${cleanup.message}")
+      }
+      return null
+    }
+    try {
+      resolver.delete(src, null, null)
+    } catch (e: Exception) {
+      // The media-collection copy committed; a leftover Downloads row is
+      // cosmetic, so don't fail the relocation over it.
+      TSLog.w(TAG, "relocate($displayName): failed to delete Downloads copy: ${e.message}")
+    }
+    // Re-key the URI cache so later lookups resolve to the new row.
+    uriByName.entries.firstOrNull { it.value == src }?.let { uriByName[it.key] = dst }
+    // The system may have uniquified the display name on insert; report
+    // the committed name and path.
+    var finalName = displayName
+    var finalRelativePath = "$mediaDir/$DISPLAY_SUBDIR"
+    resolver.query(
+        dst,
+        arrayOf(MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.RELATIVE_PATH),
+        null, null, null)?.use { c ->
+      if (c.moveToFirst()) {
+        c.getString(0)?.let { finalName = it }
+        c.getString(1)?.let { finalRelativePath = it.trimEnd('/') }
+      }
+    }
+    TSLog.d(TAG, "relocated $displayName to $finalRelativePath/$finalName")
+    return RelocatedMedia(dst.toString(), "$finalRelativePath/$finalName")
+  }
 
   private fun ctx(): Context =
       appContext ?: throw IOException("MediaStoreFileHelper not initialized")

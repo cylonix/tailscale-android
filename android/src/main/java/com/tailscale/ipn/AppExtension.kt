@@ -15,6 +15,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.launch
@@ -118,10 +119,31 @@ fun App.setNotificationCallback(callback: (Notify) -> Unit) {
 
 fun App.onNotificationReceived(notification: Notify) {
     notification.CylonixDirectFileReceived?.let { file ->
-        try {
-            notifyDirectModeFileReceived(file)
-        } catch (e: Exception) {
-            TSLog.e(TAG, "notifyDirectModeFileReceived failed: ${e.message}")
+        // Relocation copies file bytes through the content resolver, so do
+        // the work (and the follow-up notification) off the notify-bus
+        // collector on an IO dispatcher.
+        applicationScope.launch(Dispatchers.IO) {
+            try {
+                var notifyFile = file
+                var locationOverride: String? = null
+                // AirDrop parity: plain Taildrop drops (no peer-message
+                // transfer ID) of photos/videos move from Downloads/Cylonix
+                // into the gallery collections. Peer-message attachments
+                // stay put — chat bubbles reference the saved URI.
+                if (file.transferId.isEmpty() && file.path.startsWith("content://")) {
+                    val displayName =
+                        if (file.name.isNotEmpty()) file.name else File(file.path).name
+                    com.tailscale.ipn.util.MediaStoreFileHelper
+                        .relocateToMediaCollection(displayName, file.path)
+                        ?.let { moved ->
+                            notifyFile = file.copy(path = moved.uri)
+                            locationOverride = moved.humanLocation
+                        }
+                }
+                notifyDirectModeFileReceived(notifyFile, locationOverride)
+            } catch (e: Exception) {
+                TSLog.e(TAG, "notifyDirectModeFileReceived failed: ${e.message}")
+            }
         }
     }
     onNotification?.invoke(notification)
@@ -135,7 +157,10 @@ fun App.onNotificationReceived(notification: Notify) {
 // shade instead of replacing one another.
 private val taildropNotificationId = AtomicInteger(2000)
 
-fun App.notifyDirectModeFileReceived(file: Ipn.CylonixDirectFile) {
+fun App.notifyDirectModeFileReceived(
+    file: Ipn.CylonixDirectFile,
+    locationOverride: String? = null,
+) {
     if (file.path.isEmpty() && file.name.isEmpty()) {
         return
     }
@@ -160,9 +185,11 @@ fun App.notifyDirectModeFileReceived(file: Ipn.CylonixDirectFile) {
     val sizeText = if (file.size > 0) Formatter.formatShortFileSize(this, file.size) else ""
     // Resolve a user-facing location. MediaStore returns a content:// URI
     // that means nothing to humans; substitute the well-known display
-    // path (Downloads/Cylonix/<name>) instead. For plain filesystem paths
-    // (no SAF, pre-API-29 fallback) just show the parent directory.
-    val locationText = when {
+    // path (Downloads/Cylonix/<name>) instead — or the gallery location
+    // when the file was relocated to a media collection. For plain
+    // filesystem paths (no SAF, pre-API-29 fallback) just show the parent
+    // directory.
+    val locationText = locationOverride ?: when {
         file.path.startsWith("content://") ->
             com.tailscale.ipn.util.MediaStoreFileHelper.humanLocation(displayName)
         else -> File(file.path).parent ?: file.path
