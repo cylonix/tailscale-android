@@ -193,7 +193,12 @@ build-unstripped-aar: tailscale.version $(GOBIN)/gomobile
 
 $(UNSTRIPPED_AAR): build-unstripped-aar
 
-libgojni.so.unstripped: $(UNSTRIPPED_AAR)
+# __BEGIN_CYLONIX_MOD__
+# Depend on the phony gomobile target directly, not on $(UNSTRIPPED_AAR):
+# that bridge rule has no recipe, so make never re-stats the AAR after
+# gomobile rewrites it and the strip/repackage chain silently stays stale.
+libgojni.so.unstripped: build-unstripped-aar
+# __END_CYLONIX_MOD__
 	@echo "Extracting libgojni.so from unstripped AAR..."
 	@if unzip -p $(ABS_UNSTRIPPED_AAR) jni/arm64-v8a/libgojni.so > libgojni.so.unstripped; then \
 	    echo "Found arm64-v8a libgojni.so"; \
