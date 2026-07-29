@@ -248,6 +248,14 @@ func SendCommand(cmd, args string) string {
 			return "Error: " + err.Error()
 		}
 		return "Success"
+	case "set_app_info":
+		if args == "" {
+			return "Error: no arguments provided"
+		}
+		if err := client.SetAppInfo(args); err != nil {
+			return "Error: " + err.Error()
+		}
+		return "Success"
 	case "get_env_knob":
 		if args == "" {
 			return "Error: no arguments provided"
