@@ -79,19 +79,33 @@ func (b *backend) updateTUN(rcfg *router.Config, dcfg *dns.OSConfig) error {
 	b.logger.Logf("updateTUN: changed")
 	defer b.logger.Logf("updateTUN: finished")
 
-	// Close previous tunnel(s).
-	// This is necessary for ChromeOS, native Android devices
-	// seem to handle seamless handover between tunnels correctly.
+	// __BEGIN_CYLONIX_MOD__
+	// Do NOT close the old TUN before establishing the new one, except on
+	// ChromeOS (which does not handle seamless handover correctly).
 	//
-	// TODO(eliasnaur): If seamless handover becomes a desirable feature, skip
-	// the closing on ChromeOS.
-	b.logger.Logf("updateTUN: closing old TUNs")
-	b.CloseTUNs()
-	b.logger.Logf("updateTUN: closed old TUNs")
+	// Closing first lets the kernel reuse the same interface name for the
+	// new TUN. Android's Vpn.java then treats the re-establish as an
+	// in-place update of the same network: ConnectivityService diffs the
+	// (identical) LinkProperties and issues no route commands, so the
+	// kernel routes flushed by the old interface's destruction are never
+	// re-programmed. The VPN network is left with an empty routing table
+	// and system DNS (100.100.100.100) blackholes. Establishing while the
+	// old fd is still open forces a fresh interface name, which makes
+	// Android tear down and rebuild the VPN network agent with a full
+	// route programming pass. multiTUN.add() retires the old device once
+	// the new one is added.
+	if b.closeTUNsBeforeEstablish {
+		b.logger.Logf("updateTUN: closing old TUNs (ChromeOS)")
+		b.CloseTUNs()
+		b.logger.Logf("updateTUN: closed old TUNs")
+	}
 
 	if len(rcfg.LocalAddrs) == 0 {
+		b.logger.Logf("updateTUN: no local addrs, closing TUNs")
+		b.CloseTUNs()
 		return nil
 	}
+	// __END_CYLONIX_MOD__
 	builder := vpnService.service.NewBuilder()
 	b.logger.Logf("updateTUN: got new builder")
 

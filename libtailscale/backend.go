@@ -107,6 +107,13 @@ type backend struct {
 	// when no nameservers are provided by Tailscale.
 	avoidEmptyDNS bool
 
+	// __BEGIN_CYLONIX_ADD__
+	// closeTUNsBeforeEstablish controls whether updateTUN closes the old
+	// TUN devices before establishing the new one (legacy ChromeOS-only
+	// ordering) instead of the default seamless handover.
+	closeTUNsBeforeEstablish bool
+	// __END_CYLONIX_ADD__
+
 	appCtx AppContext
 }
 
@@ -179,6 +186,7 @@ func (a *App) runBackend(ctx context.Context, hardwareAttestation bool) error {
 	// ChromeOS doesn't fall back to the underlying network nameservers if
 	// we don't provide any.
 	b.avoidEmptyDNS = a.isChromeOS()
+	b.closeTUNsBeforeEstablish = a.isChromeOS() // __CYLONIX_ADD__
 
 	var (
 		cfg        configPair
